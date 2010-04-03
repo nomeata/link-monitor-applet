@@ -67,7 +67,7 @@ G_LOCK_DEFINE_STATIC(resolver);
 #define DEFAULT_TIMEOUT		1000
 %}
 
-class LM:Host (abstract)
+class LM:Host from G:Object (abstract)
 {
   protected LMApplet *applet;
   property POINTER applet (link, flags = CONSTRUCT_ONLY);
@@ -143,9 +143,10 @@ class LM:Host (abstract)
     return NULL;
   }
 
-  [G_GNUC_PRINTF(3, 4)]
   private void
     set_error (self, Error error, const char *format (check null), ...)
+    attr {G_GNUC_PRINTF(3, 4)}
+
   {
     va_list args;
     char *msg;
