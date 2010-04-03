@@ -1,0 +1,28 @@
+From 42bf68f7babac2381b2bf51d6a19c44f9c9ba971 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Sat, 3 Apr 2010 18:34:51 +0200
+Subject: disable-scrollkeeper-update.diff
+
+---
+ jbsrc/lib/jb-resource.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/jbsrc/lib/jb-resource.c b/jbsrc/lib/jb-resource.c
+index 35ec368..014faac 100644
+--- a/jbsrc/lib/jb-resource.c
++++ b/jbsrc/lib/jb-resource.c
+@@ -1473,9 +1473,11 @@ gnome_help_install (JBResource *res)
+ 
+   jb_action_install_data(outomf, omfdir);
+ 
++/*
+   jb_action_exec("-$scrollkeeper-update -p \"$destdir$scrollkeeper-dir\" -o \"$destdir$omfdir\"",
+ 		 "omfdir", omfdir,
+ 		 NULL);
++*/
+ 
+   g_free(outomf);
+   g_free(helpdir);
+-- 
+1.7.0.3
+

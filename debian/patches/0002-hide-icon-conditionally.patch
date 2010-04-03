@@ -1,0 +1,33 @@
+From 639bcd7c5b5631243bd120e1392ba54124f3b49f Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Sat, 3 Apr 2010 18:34:51 +0200
+Subject: hide icon conditionally
+
+Patch provided by Octavio Alvarez.
+---
+ src/lm-applet.gob |    9 ++++++---
+ 1 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/src/lm-applet.gob b/src/lm-applet.gob
+index 849cb67..66897e8 100644
+--- a/src/lm-applet.gob
++++ b/src/lm-applet.gob
+@@ -497,9 +497,12 @@ class LM:Applet from Panel:Applet
+ 	break;
+       }
+ 
+-    icon = self_create_icon(self);
+-    gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
+-    gtk_widget_show(icon);
++    if (self->hosts->len <= 1)
++      {
++	icon = self_create_icon(self);
++	gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
++	gtk_widget_show(icon);
++      }
+ 
+     if (bar_graph)
+       {
+-- 
+1.7.0.3
+

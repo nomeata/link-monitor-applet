@@ -1,0 +1,79 @@
+From 6112eb4d76c60d9b2cb0ba00da8cd6e1630ffb8d Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Sat, 3 Apr 2010 18:43:00 +0200
+Subject: gob 2.0.16 compatibility
+
+---
+ src/lm-data-set.gob |    2 +-
+ src/lm-host.gob     |    5 +++--
+ src/lm-shell.gob    |    2 +-
+ src/lm-tooltips.gob |    2 +-
+ 4 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/src/lm-data-set.gob b/src/lm-data-set.gob
+index 5fff60b..946c94f 100644
+--- a/src/lm-data-set.gob
++++ b/src/lm-data-set.gob
+@@ -48,7 +48,7 @@ typedef struct
+ #include "lm-preferences-dialog.h"
+ %}
+ 
+-class LM:Data:Set
++class LM:Data:Set from G:Object
+ {
+   private LMApplet *applet;
+   property POINTER applet (link, flags = CONSTRUCT_ONLY);
+diff --git a/src/lm-host.gob b/src/lm-host.gob
+index a42ddcd..18d74b4 100644
+--- a/src/lm-host.gob
++++ b/src/lm-host.gob
+@@ -67,7 +67,7 @@ G_LOCK_DEFINE_STATIC(resolver);
+ #define DEFAULT_TIMEOUT		1000
+ %}
+ 
+-class LM:Host (abstract)
++class LM:Host from G:Object (abstract)
+ {
+   protected LMApplet *applet;
+   property POINTER applet (link, flags = CONSTRUCT_ONLY);
+@@ -143,9 +143,10 @@ class LM:Host (abstract)
+     return NULL;
+   }
+ 
+-  [G_GNUC_PRINTF(3, 4)]
+   private void
+     set_error (self, Error error, const char *format (check null), ...)
++    attr {G_GNUC_PRINTF(3, 4)}
++
+   {
+     va_list args;
+     char *msg;
+diff --git a/src/lm-shell.gob b/src/lm-shell.gob
+index 90dc6f3..e3c5eee 100644
+--- a/src/lm-shell.gob
++++ b/src/lm-shell.gob
+@@ -52,7 +52,7 @@ typedef struct
+ LMShell *lm_shell = NULL;
+ %}
+ 
+-class LM:Shell
++class LM:Shell from G:Object
+ {
+   public uint16_t icmp_ident;
+ 
+diff --git a/src/lm-tooltips.gob b/src/lm-tooltips.gob
+index 6965713..6cc2b31 100644
+--- a/src/lm-tooltips.gob
++++ b/src/lm-tooltips.gob
+@@ -71,7 +71,7 @@ typedef enum
+ #define GTK_PRIVATE_SET_FLAG(wid,flag)    G_STMT_START{ (GTK_PRIVATE_FLAGS (wid) |= (PRIVATE_ ## flag)); }G_STMT_END
+ %}
+ 
+-class LM:Tooltips
++class LM:Tooltips from G:Object
+ {
+   private GtkWidget *window;
+   private TooltipsData *active_data;
+-- 
+1.7.0.3
+
