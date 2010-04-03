@@ -1473,9 +1473,11 @@ gnome_help_install (JBResource *res)
 
   jb_action_install_data(outomf, omfdir);
 
+/*
   jb_action_exec("-$scrollkeeper-update -p \"$destdir$scrollkeeper-dir\" -o \"$destdir$omfdir\"",
 		 "omfdir", omfdir,
 		 NULL);
+*/
 
   g_free(outomf);
   g_free(helpdir);
