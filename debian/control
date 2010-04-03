@@ -19,6 +19,8 @@ Build-Depends:
  libgeoip-dev,
  librsvg2-common
 Standards-Version: 3.8.4
+VCS-Git: git://git.nomeata.de/link-monitor-applet.git
+VCS-Browser: http://git.nomeata.de/?p=link-monitor-applet.git
 
 Package: link-monitor-applet
 Architecture: any
