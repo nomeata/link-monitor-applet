@@ -512,9 +512,12 @@ class LM:Applet from Panel:Applet
 	break;
       }
 
-    icon = self_create_icon(self);
-    gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
-    gtk_widget_show(icon);
+    if (self->hosts->len <= 1)
+      {
+	icon = self_create_icon(self);
+	gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
+	gtk_widget_show(icon);
+      }
 
     if (bar_graph)
       {
