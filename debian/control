@@ -1,0 +1,52 @@
+Source: link-monitor-applet
+Section: gnome
+Priority: optional
+Maintainer: Joachim Breitner <nomeata@debian.org>
+Build-Depends:
+ debhelper (>= 7),
+ autotools-dev,
+ cdbs (>= 0.4.52),
+ libxml-parser-perl,
+ libgnomeui-dev,
+ libglade2-dev,
+ libpanel-applet2-dev,
+ libglib2.0-dev,
+ libgtk2.0-dev (>= 2.8.0),
+ gob2 (>= 2.0.16),
+ gconf2,
+ scrollkeeper,
+ pkg-config,
+ libgeoip-dev,
+ librsvg2-common
+Standards-Version: 3.8.4
+
+Package: link-monitor-applet
+Architecture: any
+Depends:
+ link-monitor-applet-common (= ${source:Version}),
+ ${shlibs:Depends},
+ ${misc:Depends},
+ gnome-panel
+Description: GNOME Panel Applet with bar graph of round-trip times to hosts
+ Link Monitor Applet is a GNOME Panel Applet displaying the round-trip time to
+ one or more hosts in a bar graph, featuring:
+  * Round-trip time plot graphs
+  * Country flags and names
+  * full ICMP and ICMPv6 support
+  * configurable scale and delays
+  * HIG 2.0 compliance
+
+Package: link-monitor-applet-common
+Architecture: all
+Depends: ${misc:Depends}
+Replaces: link-monitor-applet (<= 3.0-1)
+Description: GNOME Panel Applet with graph of round-trip times to hosts (data)
+ Link Monitor Applet is a GNOME Panel Applet displaying the round-trip time to
+ one or more hosts in a bar graph, featuring:
+  * Round-trip time plot graphs
+  * Country flags and names
+  * full ICMP and ICMPv6 support
+  * configurable scale and delays
+  * HIG 2.0 compliance
+ .
+ This package contains the architecture independent files (mostly flags).

@@ -1,0 +1,20 @@
+Index: link-monitor-applet-3.0/src/lm-applet.gob
+===================================================================
+--- link-monitor-applet-3.0.orig/src/lm-applet.gob	2010-04-03 18:18:15.000000000 +0200
++++ link-monitor-applet-3.0/src/lm-applet.gob	2010-04-03 18:18:18.000000000 +0200
+@@ -497,9 +497,12 @@
+ 	break;
+       }
+ 
+-    icon = self_create_icon(self);
+-    gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
+-    gtk_widget_show(icon);
++    if (self->hosts->len <= 1)
++      {
++	icon = self_create_icon(self);
++	gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
++	gtk_widget_show(icon);
++      }
+ 
+     if (bar_graph)
+       {

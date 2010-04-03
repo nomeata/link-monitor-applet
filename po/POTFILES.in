@@ -1,0 +1,18 @@
+[encoding: UTF-8]
+data/GNOME_LinkMonitorApplet.server.in.in
+data/link-monitor-applet.schemas.in
+src/lm-about-dialog.gob
+src/lm-applet.gob
+src/lm-host-frontend.gob
+src/lm-host-view.gob
+src/lm-host.gob
+src/lm-icmp.c
+src/lm-icmp.h
+src/lm-line-graph.gob
+src/lm-main.c
+src/lm-preferences-dialog.gob
+src/lm-shell.gob
+src/lm-util.c
+src/lm-util.h
+ui/GNOME_LinkMonitorApplet.xml
+ui/preferences-dialog.glade

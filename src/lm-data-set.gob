@@ -1,0 +1,484 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include "lm-util.h"
+#include "lm-decls.h"
+%}
+
+%h{
+typedef struct
+{
+  LMTimeSpan	timestamp;
+  /*
+   * Save some space (usually 4 bytes) by not using a LMTimeSpan.
+   *
+   * Note that we lose nothing in the process: ridiculously high
+   * roundtrip times (more than one hour) would be needed to lose
+   * precision. And to be able to observe that loss of precision, a
+   * ridiculously tall graph would be needed (a few million pixels or
+   * so).
+   *
+   * A negative value means no reply.
+   */
+  float		roundtrip_time;
+} LMDataPoint;
+%}
+
+%{
+#include <string.h>
+#include "lm-line-graph.h"
+#include "lm-applet.h"
+#include "lm-preferences-dialog.h"
+%}
+
+class LM:Data:Set from G:Object
+{
+  private LMApplet *applet;
+  property POINTER applet (link, flags = CONSTRUCT_ONLY);
+
+  private GArray *master_data destroy { g_array_free(VAR, TRUE); };
+
+  private GArray *display_data
+    destroy
+    {
+      if (VAR)
+	g_array_free(VAR, TRUE);
+    };
+
+  private int display_data_consolidate_offset;
+
+  constructor (self)
+  {
+    selfp->master_data = g_array_new(FALSE, FALSE, sizeof(LMDataPoint));
+    /* display_data is created when needed */
+
+    lm_g_object_connect(self, selfp->applet,
+			"swapped-signal::notify::tooltip-graph-span", self_clear_display_data, self,
+			NULL);
+  }
+
+  private void
+    get_average (GArray *data (check null),
+		 int start,
+		 int len,
+		 LMDataPoint *result (check null))
+  {
+    int end;
+    int i;
+    LMTimeSpan liveness = 0;
+    LMTimeSpan deadness = 0;
+
+    g_return_if_fail(start >= 0);
+    g_return_if_fail(len > 0);
+    g_return_if_fail(start <= data->len - len); /* reordered to avoid overflow */
+
+    end = start + len;
+
+    /* compute the liveness and deadness span of the group */
+
+    for (i = start + 1; i < end; i++)
+      {
+	const LMDataPoint *dp = &g_array_index(data, LMDataPoint, i);
+	const LMDataPoint *prev = &g_array_index(data, LMDataPoint, i - 1);
+	LMTimeSpan interval;
+
+	interval = dp->timestamp - prev->timestamp;
+	if (prev->roundtrip_time < 0)
+	  deadness += interval;
+	else
+	  liveness += interval;
+      }
+
+    result->timestamp = 0;
+
+    if (deadness > liveness)
+      {
+	/* deadness wins, the result is a dead data point */
+
+	for (i = start; i < end; i++)
+	  {
+	    const LMDataPoint *dp = &g_array_index(data, LMDataPoint, i);
+
+	    result->timestamp += dp->timestamp;
+	  }
+
+	result->roundtrip_time = -1;
+      }
+    else
+      {
+	float max_rtt = 0;
+	double avg_rtt = 0;
+
+	/* liveness wins, the result is the average round-trip time */
+
+	for (i = start; i < end; i++)
+	  {
+	    const LMDataPoint *dp = &g_array_index(data, LMDataPoint, i);
+
+	    if (dp->roundtrip_time > max_rtt)
+	      max_rtt = dp->roundtrip_time;
+	  }
+
+	for (i = start; i < end; i++)
+	  {
+	    const LMDataPoint *dp = &g_array_index(data, LMDataPoint, i);
+
+	    result->timestamp += dp->timestamp;
+
+	    if (dp->roundtrip_time < 0)
+	      avg_rtt += max_rtt;
+	    else
+	      avg_rtt += dp->roundtrip_time;
+	  }
+
+	result->roundtrip_time = avg_rtt / len;
+      }
+
+    result->timestamp /= len;
+  }
+
+  private void
+    average_points (GArray *data (check null), int start, int len)
+  {
+    LMDataPoint average;
+
+    g_return_if_fail(start >= 0);
+    g_return_if_fail(len > 0);
+    g_return_if_fail(start <= data->len - len); /* reordered to avoid overflow */
+
+    self_get_average(data, start, len, &average);
+
+    g_array_remove_range(data, start, len);
+    g_array_insert_val(data, start, average);
+  }
+
+  private LMTimeSpan
+    get_min_interval_real (const LMNonLinearRangeBlock *block (check null),
+			   LMTimeSpan age)
+  {
+    LMTimeSpan step;
+    LMTimeSpan segment;
+
+    step = (LMTimeSpan) block->step * 1000;
+    segment = (age / step) + 1;
+
+    return segment * step / LM_LINE_GRAPH_AREA_WIDTH;
+  }
+
+  /*
+   * Returns the minimum interval between two contiguous data points
+   * for the data section comprising the given age.
+   *
+   * At the minimum possible graph span for which a data point of the
+   * given age is visible on the graph, the returned interval
+   * corresponds to one pixel.
+   */
+  private LMTimeSpan
+    get_min_interval (LMTimeSpan age)
+  {
+    int i;
+
+    for (i = 0; i < lm_preferences_dialog_num_tooltip_graph_span_blocks; i++)
+      {
+	const LMNonLinearRangeBlock *block = &lm_preferences_dialog_tooltip_graph_span_blocks[i];
+
+	if (age < (LMTimeSpan) block->max * 1000)
+	  return self_get_min_interval_real(block, age);
+      }
+
+    /*
+     * Timestamp older than the maximum graph span: can happen since
+     * we keep one such point in consolidate_master_data(). Use the
+     * last block.
+     */
+    return self_get_min_interval_real(&lm_preferences_dialog_tooltip_graph_span_blocks[lm_preferences_dialog_num_tooltip_graph_span_blocks - 1], age);
+  }
+
+  private void
+    consolidate_master_data (self, LMTimeSpan now)
+  {
+    int i;
+    LMTimeSpan max_span;
+    LMTimeSpan min_timestamp;
+
+    /*
+     * The consolidation algorithm ensures that there will be just
+     * enough data points to display at most one point per horizontal
+     * pixel, regardless of the graph span.
+     *
+     * The theoretical [1] maximum number of data points can be
+     * approximated [2] with the following expression:
+     *
+     *   nb    bh/bs
+     *   E  (   E     (w / x) )
+     *  b=1   x=bl/bs
+     *
+     * where:
+     *
+     *    w is LM_LINE_GRAPH_AREA_WIDTH
+     *   nb is G_N_ELEMENTS(lm_preferences_dialog_tooltip_graph_span_blocks)
+     *   bl is lm_preferences_dialog_tooltip_graph_span_blocks[b - 1].min
+     *   bh is lm_preferences_dialog_tooltip_graph_span_blocks[b - 1].max
+     *   bs is lm_preferences_dialog_tooltip_graph_span_blocks[b - 1].step
+     *
+     * Using the values that the variables involved in the above
+     * expression have at the time of this writing, the maximum number
+     * of data points is:
+     *
+     *       6            10           12           24
+     *       E (w / x) +  E (w / x) +  E (w / x) +  E (w / x)
+     *      x=1          x=2          x=3          x=2
+     *
+     *       7
+     *   +   E (w / x) = 5092.6892
+     *      x=2
+     *
+     * That is, about 5092 LMDataPoint structures (61104 bytes on most
+     * platforms) for one week worth of data.
+     *
+     * [1] It is theoretical since it represents the number of data
+     * points produced when the consolidation function is run only
+     * once on a full, evenly distributed data set. In practice, since
+     * the data set shifts constantly and is not evenly distributed,
+     * the maximum number of points will be much lower than this.
+     *
+     * [2] It is an approximation since the algorithm works by
+     * ensuring a minimum interval between two points, rather than a
+     * maximum number of points for a given time period.
+     */
+
+    max_span = (LMTimeSpan) lm_preferences_dialog_tooltip_graph_span_blocks[lm_preferences_dialog_num_tooltip_graph_span_blocks - 1].max * 1000;
+    min_timestamp = now - max_span;
+
+    /*
+     * Discard the points which are too old to be shown even with the
+     * maximum graph span, except the last one (to have a line
+     * entering the graph on the left).
+     */
+    for (i = 0; i < selfp->master_data->len; i++)
+      {
+	const LMDataPoint *dp = &g_array_index(selfp->master_data, LMDataPoint, i);
+
+	if (dp->timestamp >= min_timestamp)
+	  break;
+      }
+    if (i > 1)
+      g_array_remove_range(selfp->master_data, 0, i - 1);
+
+    for (i = 0; i < selfp->master_data->len; i++)
+      {
+	const LMDataPoint *dp = &g_array_index(selfp->master_data, LMDataPoint, i);
+	LMTimeSpan min_interval;
+	int group_end;
+	int group_len;
+
+	min_interval = self_get_min_interval(now - dp->timestamp);
+
+	for (group_end = i + 1; group_end < selfp->master_data->len; group_end++)
+	  {
+	    const LMDataPoint *other_dp = other_dp = &g_array_index(selfp->master_data, LMDataPoint, group_end);
+	    LMTimeSpan other_min_interval;
+
+	    other_min_interval = self_get_min_interval(now - other_dp->timestamp);
+
+	    /* end the group if the point is in a different data section */
+	    if (other_min_interval != min_interval)
+	      break;
+
+	    if (other_dp->timestamp - dp->timestamp > min_interval)
+	      break;
+	  }
+
+	group_len = group_end - i;
+	if (group_len > 1)
+	  self_average_points(selfp->master_data, i, group_len);
+      }
+  }
+
+  private void
+    consolidate_display_data (self, LMTimeSpan now)
+  {
+    LMTimeSpan span;
+    LMTimeSpan min_interval;
+    LMTimeSpan min_timestamp;
+    LMTimeSpan max_consolidation_timestamp;
+    int i;
+
+    g_return_if_fail(selfp->display_data != NULL);
+
+    span = (LMTimeSpan) selfp->applet->tooltip_graph_span * 1000000;
+
+    min_interval = span / LM_LINE_GRAPH_AREA_WIDTH;
+
+    /*
+     * Note that these timestamps can be negative, since on most
+     * systems, lm_get_ticks() returns the number of ticks since boot.
+     */
+    min_timestamp = now - span;
+    max_consolidation_timestamp = now - min_interval;
+
+    /*
+     * Discard the points which would end up at the left of the graph
+     * except the last one (to have a line entering the graph on the
+     * left).
+     */
+    for (i = 0; i < selfp->display_data->len; i++)
+      {
+	const LMDataPoint *dp = &g_array_index(selfp->display_data, LMDataPoint, i);
+
+	if (dp->timestamp >= min_timestamp)
+	  break;
+      }
+    if (i > 1)
+      {
+	int remove_len;
+
+	remove_len = i - 1;
+
+	g_array_remove_range(selfp->display_data, 0, remove_len);
+
+	/* reflect the removal in the offset */
+	selfp->display_data_consolidate_offset -= remove_len;
+	if (selfp->display_data_consolidate_offset < 0)
+	  selfp->display_data_consolidate_offset = 0;
+      }
+
+    for (i = selfp->display_data_consolidate_offset; i < selfp->display_data->len; i++)
+      {
+	const LMDataPoint *dp = &g_array_index(selfp->display_data, LMDataPoint, i);
+	int group_end;
+	int group_len;
+
+	for (group_end = i + 1; group_end < selfp->display_data->len; group_end++)
+	  {
+	    const LMDataPoint *other_dp = &g_array_index(selfp->display_data, LMDataPoint, group_end);
+
+	    /*
+	     * We do not consolidate the data points more recent than
+	     * min_interval. Otherwise, if data points arrived faster
+	     * than min_interval, they would never have a chance to
+	     * accumulate.
+	     *
+	     * For instance, with a 5 minutes graph span, the
+	     * min_interval is 609756 usec. If the delay between echo
+	     * requests is smaller than this (for instance 200 ms),
+	     * the two most recent data points would always be
+	     * averaged:
+	     *
+	     *	timestamp=0      |
+	     *                   |-> averaged: timestamp=100000
+	     *  timestamp=200000 |
+	     *
+	     *	timestamp=100000 |
+	     *                   |-> averaged: timestamp=250000
+	     *  timestamp=400000 |
+	     *
+	     *	timestamp=250000 |
+	     *                   |-> averaged: timestamp=425000
+	     *  timestamp=600000 |
+	     *
+	     *	timestamp=425000 |
+	     *                   |-> averaged: timestamp=612500
+	     *  timestamp=800000 |
+	     */
+	    if (other_dp->timestamp > max_consolidation_timestamp)
+	      goto end;
+
+	    if (other_dp->timestamp - dp->timestamp > min_interval)
+	      break;
+	  }
+
+	group_len = group_end - i;
+	if (group_len > 1)
+	  self_average_points(selfp->display_data, i, group_len);
+      }
+
+  end:
+    selfp->display_data_consolidate_offset = i;
+  }
+
+  private void
+    add_data_point (self, float roundtrip_time)
+  {
+    LMTimeSpan now;
+    LMDataPoint data_point;
+
+    now = lm_get_ticks();
+
+    data_point.timestamp = now;
+    data_point.roundtrip_time = roundtrip_time;
+
+    g_array_append_val(selfp->master_data, data_point);
+    self_consolidate_master_data(self, now);
+
+    if (selfp->display_data)
+      {
+	g_array_append_val(selfp->display_data, data_point);
+	self_consolidate_display_data(self, now);
+      }
+  }
+
+  public void
+    add_live_data_point (self, LMTimeSpan roundtrip_time)
+  {
+    self_add_data_point(self, roundtrip_time);
+  }
+
+  public void
+    add_dead_data_point (self)
+  {
+    self_add_data_point(self, -1);
+  }
+
+  public GArray *
+    get_display_data (self, LMTimeSpan now)
+  {
+    if (! selfp->display_data)
+      {
+	g_assert(selfp->display_data_consolidate_offset == 0);
+
+	/* initialize the display data from the master data */
+	selfp->display_data = g_array_sized_new(FALSE, FALSE, sizeof(LMDataPoint), selfp->master_data->len);
+	g_array_set_size(selfp->display_data, selfp->master_data->len);
+	memcpy(selfp->display_data->data, selfp->master_data->data, sizeof(LMDataPoint) * selfp->master_data->len);
+
+	self_consolidate_display_data(self, now);
+      }
+
+    return selfp->display_data;
+  }
+
+  public void
+    clear_display_data (self)
+  {
+    if (selfp->display_data)
+      {
+	g_array_free(selfp->display_data, TRUE);
+	selfp->display_data = NULL;
+	selfp->display_data_consolidate_offset = 0;
+      }
+  }
+
+  public LMDataSet *
+    new (LM:Applet *applet (check null type))
+  {
+    return GET_NEW_VARG(LM_HOST_PROP_APPLET(applet), NULL);
+  }
+}

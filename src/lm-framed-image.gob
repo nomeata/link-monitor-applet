@@ -1,0 +1,105 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gtk/gtk.h>
+%}
+
+%{
+#include "lm-util.h"
+
+#define XALIGN			0.5
+#define YALIGN			0.5
+%}
+
+class LM:Framed:Image from Gtk:Widget
+{
+  private GdkPixbuf *pixbuf unrefwith g_object_unref;
+  property OBJECT pixbuf (export, object_type = Gdk:Pixbuf, type = GdkPixbuf *)
+    set
+    {
+      if (selfp->pixbuf)
+	g_object_unref(selfp->pixbuf);
+
+      selfp->pixbuf = g_value_dup_object(VAL);
+
+      gtk_widget_queue_resize(GTK_WIDGET(self));
+    };
+
+  init (self)
+  {
+    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+  }
+
+  override (Gtk:Widget) void
+    size_request (GtkWidget *widget, GtkRequisition *requisition)
+  {
+    Self *self = SELF(widget);
+
+    if (selfp->pixbuf)
+      {
+	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
+	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
+      }
+    else
+      {
+	requisition->width = 0;
+	requisition->height = 0;
+      }
+  }
+
+  override (Gtk:Widget) gboolean
+    expose_event (GtkWidget *widget, GdkEventExpose *event)
+  {
+    Self *self = SELF(widget);
+    int x;
+    int y;
+
+    if (! GTK_WIDGET_DRAWABLE(widget) || ! selfp->pixbuf)
+      return FALSE;
+
+    lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
+
+    gtk_paint_shadow(widget->style,
+		     widget->window,
+		     GTK_WIDGET_STATE(widget),
+		     GTK_SHADOW_IN,
+		     &event->area,
+		     widget,
+		     NULL,
+		     x,
+		     y,
+		     widget->requisition.width,
+		     widget->requisition.height);
+
+    lm_paint_pixbuf(widget->window,
+		    selfp->pixbuf,
+		    &event->area,
+		    x + LM_BOX_BORDER_WIDTH,
+		    y + LM_BOX_BORDER_WIDTH);
+
+    return FALSE;
+  }
+
+  public GtkWidget *
+    new (void)
+  {
+    return GTK_WIDGET(GET_NEW);
+  }
+}

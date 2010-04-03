@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE omf PUBLIC "-//OMF//DTD Scrollkeeper OMF Variant V1.0//EN" "http://scrollkeeper.sourceforge.net/dtds/scrollkeeper-omf-1.0/scrollkeeper-omf.dtd">
+<omf>
+  <resource>
+    <creator>
+      jylefort@brutele.be (Jean-Yves Lefort)
+    </creator>
+    <maintainer>
+      jylefort@brutele.be (Jean-Yves Lefort)
+    </maintainer>
+    <title>
+      Link Monitor Applet Manual
+    </title>
+    <date>
+      2008-02-20
+    </date>
+    <version identifier="2.8" date="2008-02-20" description="Version 2.8"/>
+    <subject category="GNOME|Applets|Internet"/>
+    <description>
+      Link Monitor Applet Manual
+    </description>
+    <type>
+      user's guide
+    </type>
+    <format mime="text/xml" dtd="-//OASIS//DTD DocBook XML V4.1.2//EN"/>
+    <identifier url="placeholder"/>
+    <language code="C"/>
+    <relation seriesid="7ef77d8a-dc02-11d8-8ab5-af08ed8ecabe"/>
+    <rights type="BSD" holder="Jean-Yves Lefort"/>
+  </resource>
+</omf>

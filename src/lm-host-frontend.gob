@@ -1,0 +1,458 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gtk/gtk.h>
+#include "lm-host.h"
+#include "lm-applet.h"
+#include "lm-data-set.h"
+%}
+
+%h{
+typedef struct
+{
+  char		*name;
+  GdkColor	color;
+} LMHostFrontendConfiguration;
+%}
+
+%privateheader{
+#include "lm-util.h"
+%}
+
+%{
+#include <glib/gi18n.h>
+#if WITH_GEOIP
+#include <GeoIP.h>
+#endif
+#include "lm-util.h"
+#include "lm-framed-image.h"
+
+/* when changing, keep the 3:2 aspect ratio */
+#define FLAG_WIDTH	36
+#define FLAG_HEIGHT	24
+%}
+
+class LM:Host:Frontend from LM:Host
+{
+  public GdkColor color;
+  property BOXED color (export,
+			flags = CONSTRUCT,
+			boxed_type = Gdk:Color,
+			type = const GdkColor *)
+    set
+    {
+      lm_g_value_get_mandatory_color(VAL, &self->color);
+    }
+    get
+    {
+      g_value_set_boxed(VAL, &self->color);
+    };
+
+  private char *country_name destroywith g_free;
+  property STRING country_name (link, export);
+
+  public LMDataSet *data_set unrefwith g_object_unref;
+
+  public GtkWidget *tooltip_flag unrefwith g_object_unref;
+  public GtkWidget *tooltip_status unrefwith g_object_unref;
+
+  private LMCallback data_set_callback;
+  private LMCallback tooltip_location_callback;
+  private LMCallback tooltip_status_callback;
+
+  private unsigned int update_last_reply_timeout_id;
+
+  constructor (self)
+  {
+    self->data_set = lm_data_set_new(LM_HOST(self)->applet);
+
+    self->tooltip_flag = lm_framed_image_new();
+
+    self->tooltip_status = gtk_label_new(NULL);
+    gtk_misc_set_alignment(GTK_MISC(self->tooltip_status), 0.0, 0.5);
+
+    g_object_ref_sink(self->tooltip_flag);
+    g_object_ref_sink(self->tooltip_status);
+
+    lm_callback_init(&selfp->data_set_callback, (LMCallbackFunc) self_update_data_set, self);
+    lm_callback_init(&selfp->tooltip_location_callback, (LMCallbackFunc) self_update_tooltip_location, self);
+    lm_callback_init(&selfp->tooltip_status_callback, (LMCallbackFunc) self_update_tooltip_status, self);
+
+    g_object_connect(self,
+		     "swapped-signal::notify::ip", lm_callback_queue, &selfp->tooltip_location_callback,
+		     "swapped-signal::notify::ip", lm_callback_queue, &selfp->tooltip_status_callback,
+		     "swapped-signal::notify::country-name", lm_callback_queue, &selfp->tooltip_status_callback,
+		     "swapped-signal::notify::resolving", lm_callback_queue, &selfp->tooltip_status_callback,
+		     "swapped-signal::notify::error", lm_callback_queue, &selfp->tooltip_status_callback,
+		     "swapped-signal::notify::alive", lm_callback_queue, &selfp->data_set_callback,
+		     "swapped-signal::notify::alive", lm_callback_queue, &selfp->tooltip_status_callback,
+		     "swapped-signal::notify::roundtrip-time", lm_callback_queue, &selfp->data_set_callback,
+		     "swapped-signal::notify::roundtrip-time", lm_callback_queue, &selfp->tooltip_status_callback,
+		     NULL);
+
+    self_update_tooltip_location(self);
+    self_update_tooltip_status(self);
+  }
+
+  dispose (self)
+  {
+    lm_source_clear(&selfp->update_last_reply_timeout_id);
+
+    lm_callback_clear(&selfp->data_set_callback);
+    lm_callback_clear(&selfp->tooltip_location_callback);
+    lm_callback_clear(&selfp->tooltip_status_callback);
+  }
+
+  private void
+    update_tooltip_location (self)
+  {
+#if WITH_GEOIP
+    LMHost *host = LM_HOST(self);
+    GdkPixbuf *flag = NULL;
+    char *country_name = NULL;
+
+    if (host->ip)
+      {
+	GeoIP *geoip;
+
+	geoip = GeoIP_new(0);
+	if (geoip)
+	  {
+	    const char *country_code;
+
+	    country_code = GeoIP_country_code_by_addr(geoip, host->ip);
+	    if (country_code)
+	      {
+		char *base;
+		char *filename;
+		char *pathname;
+
+		base = g_ascii_strdown(country_code, -1);
+		filename = g_strconcat(base, ".svg", NULL);
+		g_free(base);
+
+		pathname = g_build_filename(PKGDATADIR, "flags", filename, NULL);
+		g_free(filename);
+
+		if (g_file_test(pathname, G_FILE_TEST_EXISTS))
+		  {
+		    GError *err = NULL;
+		    GdkPixbuf *raw;
+
+		    raw = gdk_pixbuf_new_from_file(pathname, &err);
+		    if (raw)
+		      {
+			flag = gdk_pixbuf_scale_simple(raw, FLAG_WIDTH, FLAG_HEIGHT, GDK_INTERP_BILINEAR);
+			g_object_unref(raw);
+		      }
+		    else
+		      {
+			g_warning("unable to load %s: %s", pathname, err->message);
+			g_error_free(err);
+		      }
+		  }
+		g_free(pathname);
+	      }
+
+	    country_name = g_strdup(GeoIP_country_name_by_addr(geoip, host->ip));
+	    GeoIP_delete(geoip);
+	  }
+      }
+
+    lm_framed_image_set_pixbuf(LM_FRAMED_IMAGE(self->tooltip_flag), flag);
+    if (flag)
+      g_object_unref(flag);
+
+    self_set_country_name(self, country_name);
+    g_free(country_name);
+#endif
+  }
+
+  private char *
+    get_last_reply_string (self, int *next_update (check null))
+  {
+    LMHost *host = LM_HOST(self);
+    char *str = NULL;
+
+    if (host->last_received_ticks)
+      {
+	LMTimeSpan diff;
+	int secs;
+
+	diff = lm_get_ticks() - host->last_received_ticks;
+	secs = (int) (diff / G_USEC_PER_SEC);
+
+	if (secs >= 10)
+	  {
+	    if (secs < 60)
+	      str = g_strdup_printf(_("last reply: %i” ago"), secs);
+	    else if (secs < 60 * 60)
+	      str = g_strdup_printf(_("last reply: %.2i:%.2i” ago"), secs / 60, secs % 60);
+	    else
+	      str = g_strdup_printf(_("last reply: %.2i:%.2i:%.2i” ago"), secs / (60 * 60), (secs % (60 * 60)) / 60, secs % 60);
+	  }
+
+	/* run again when the seconds of difference will change */
+
+	*next_update = (1000000 - (diff % 1000000)) / 1000 + 1;
+      }
+    else
+      *next_update = -1;
+
+    return str;
+  }
+
+  private void
+    update_tooltip_status (self)
+  {
+    LMHost *host = LM_HOST(self);
+    GString *markup;
+    char *escaped_name;
+
+    markup = g_string_new(NULL);
+
+    escaped_name = g_markup_escape_text(host->name, -1);
+    g_string_append_printf(markup, "<span weight=\"bold\">%s</span>", escaped_name);
+    g_free(escaped_name);
+
+    if (host->resolving)
+      g_string_append_printf(markup, " (%s)", _("resolving hostname"));
+    else
+      {
+	char *escaped_country_name = NULL;
+
+	if (selfp->country_name)
+	  escaped_country_name = g_markup_escape_text(selfp->country_name, -1);
+
+	if (host->ip && strcmp(host->ip, host->name))
+	  {
+	    if (escaped_country_name)
+	      g_string_append_printf(markup, " (%s, %s)", escaped_country_name, host->ip);
+	    else
+	      g_string_append_printf(markup, " (%s)", host->ip);
+	  }
+	else if (escaped_country_name)
+	  g_string_append_printf(markup, " (%s)", escaped_country_name);
+
+	g_free(escaped_country_name);
+      }
+
+    if (host->alive)
+      {
+	lm_source_clear(&selfp->update_last_reply_timeout_id);
+
+	g_string_append_c(markup, '\n');
+	g_string_append_printf(markup, _("%i ms"), (int) (host->roundtrip_time / 1000));
+      }
+    else
+      {
+	const char *error;
+	char *escaped_error = NULL;
+	char *last_reply;
+	int next_update;
+
+	error = lm_host_get_error(host);
+	if (error)
+	  escaped_error = g_markup_escape_text(error, -1);
+
+	last_reply = self_get_last_reply_string(self, &next_update);
+	if (last_reply)
+	  {
+	    if (escaped_error)
+	      g_string_append_printf(markup, "\n%s (%s)", escaped_error, last_reply);
+	    else
+	      g_string_append_printf(markup, "\n%s", last_reply);
+
+	    g_free(last_reply);
+	  }
+	else
+	  {
+	    if (escaped_error)
+	      g_string_append_printf(markup, "\n%s", escaped_error);
+	  }
+
+	g_free(escaped_error);
+
+	if (next_update == -1)
+	  g_assert(selfp->update_last_reply_timeout_id == 0);
+	else
+	  selfp->update_last_reply_timeout_id = gdk_threads_add_timeout(next_update, self_update_last_reply_cb, self);
+      }
+
+    gtk_label_set_markup(GTK_LABEL(self->tooltip_status), markup->str);
+    g_string_free(markup, TRUE);
+  }
+
+  private gboolean
+    update_last_reply_cb (gpointer data)
+  {
+    Self *self = data;
+
+    lm_callback_queue(&selfp->tooltip_status_callback);
+
+    /*
+     * The timeout was reinstalled in
+     * update_tooltip_status(), remove this one.
+     */
+    return FALSE;
+  }
+
+  private void
+    update_data_set (self)
+  {
+    LMHost *host = LM_HOST(self);
+
+    if (host->alive)
+      lm_data_set_add_live_data_point(self->data_set, host->roundtrip_time);
+    else
+      lm_data_set_add_dead_data_point(self->data_set);
+  }
+
+  public LMHostFrontend *
+    new (LM:Applet *applet (check null type),
+	 const char *name (check null),
+	 const GdkColor *color)
+  {
+    GdkColor auto_color;
+
+    if (! color)
+      {
+	lm_applet_get_host_color(applet, name, &auto_color);
+	color = &auto_color;
+      }
+
+    return GET_NEW_VARG(LM_HOST_PROP_APPLET(applet),
+			LM_HOST_PROP_NAME((char *) name),
+			LM_HOST_FRONTEND_PROP_COLOR(color),
+			NULL);
+  }
+
+  public LMHostFrontend *
+    new_from_configuration (LM:Applet *applet (check null type),
+			    LMHostFrontendConfiguration *config (check null))
+  {
+    return self_new(applet, config->name, &config->color);
+  }
+
+  public LMHostFrontendConfiguration *
+    get_configuration (self)
+  {
+    LMHostFrontendConfiguration *config;
+
+    config = g_new0(LMHostFrontendConfiguration, 1);
+    config->name = g_strdup(LM_HOST(self)->name);
+    config->color = self->color;
+
+    return config;
+  }
+
+  public void
+    configuration_free (LMHostFrontendConfiguration *config (check null))
+  {
+    g_free(config->name);
+    g_free(config);
+  }
+
+  public char *
+    build_gconf_entry (self)
+  {
+    LMHost *host = LM_HOST(self);
+    GString *str;
+    int i;
+
+    str = g_string_new(NULL);
+
+    for (i = 0; host->name[i]; i++)
+      if (host->name[i] == '|' || host->name[i] == '\\')
+	g_string_append_printf(str, "\\%c", host->name[i]);
+      else
+	g_string_append_c(str, host->name[i]);
+
+    g_string_append_printf(str, "|#%02X%02X%02X",
+			   self->color.red / 256,
+			   self->color.green / 256,
+			   self->color.blue / 256);
+
+    return g_string_free(str, FALSE);
+  }
+
+  private guint16
+    parse_color_channel (const char *str)
+  {
+    return (g_ascii_xdigit_value(str[0]) * 16 + g_ascii_xdigit_value(str[1])) * 256;
+  }
+
+  public LMHostFrontend *
+    parse_gconf_entry (LM:Applet *applet (check null type),
+		       const char *entry (check null))
+  {
+    GString *name;
+    const char *color_str = NULL;
+    Self *self = NULL;
+    int i;
+
+    name = g_string_new(NULL);
+
+    for (i = 0; entry[i]; i++)
+      if (entry[i] == '\\')
+	{
+	  i++;
+	  if (entry[i] == '|' || entry[i] == '\\')
+	    g_string_append_c(name, entry[i]);
+	  else
+	    goto end;
+	}
+      else if (entry[i] == '|')
+	{
+	  color_str = &entry[i + 1];
+	  break;
+	}
+      else
+	g_string_append_c(name, entry[i]);
+
+    if (color_str)
+      {
+	GdkColor color;
+
+	if (color_str[0] != '#')
+	  goto end;
+
+	for (i = 1; i < 7; i++)
+	  if (! g_ascii_isxdigit(color_str[i]))
+	    goto end;
+
+	if (color_str[7] != 0)
+	  goto end;
+
+	color.pixel = 0;
+	color.red = self_parse_color_channel(&color_str[1]);
+	color.green = self_parse_color_channel(&color_str[3]);
+	color.blue = self_parse_color_channel(&color_str[5]);
+
+	self = self_new(applet, name->str, &color);
+      }
+    else
+      self = self_new(applet, name->str, NULL);
+
+  end:
+    g_string_free(name, TRUE);
+    return self;
+  }
+}

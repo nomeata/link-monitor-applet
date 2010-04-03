@@ -1,0 +1,3 @@
+# license files used in documentation
+link-monitor-applet-common binary: extra-license-file usr/share/gnome/help/link-monitor-applet/C/documentation-license.xml
+link-monitor-applet-common binary: extra-license-file usr/share/gnome/help/link-monitor-applet/C/software-license.xml

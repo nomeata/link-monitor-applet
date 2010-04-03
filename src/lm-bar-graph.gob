@@ -1,0 +1,288 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gtk/gtk.h>
+#include "lm-decls.h"
+%}
+
+%h{
+typedef enum
+{
+  LM_BAR_GRAPH_ORIENTATION_HORIZONTAL,
+  LM_BAR_GRAPH_ORIENTATION_VERTICAL
+} LMBarGraphOrientation;
+%}
+
+%{
+#include "lm-util.h"
+#include "lm-applet.h"
+#include "lm-host-frontend.h"
+
+#define BAR_THICKNESS			6
+
+#define BAR_PADDING			2
+
+#define LINE_WIDTH			1.0
+
+#define ALIGN				0.5
+%}
+
+class LM:Bar:Graph from Gtk:Widget
+{
+  private LMApplet *applet;
+  property POINTER applet (link, flags = CONSTRUCT_ONLY);
+
+  private LMBarGraphOrientation orientation;
+  property INT orientation (export, type = LMBarGraphOrientation)
+    set
+    {
+      selfp->orientation = g_value_get_int(VAL);
+      gtk_widget_queue_resize(GTK_WIDGET(self));
+    };
+
+  constructor (self)
+  {
+    int i;
+
+    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+
+    lm_g_object_connect(self, selfp->applet,
+			"swapped-signal::notify::scale", gtk_widget_queue_draw, self,
+			NULL);
+
+    LM_ARRAY_FOREACH(i, selfp->applet->hosts)
+      {
+	LMHostFrontend *host = g_ptr_array_index(selfp->applet->hosts, i);
+
+	lm_g_object_connect(self, host,
+			    "swapped-signal::notify::color", gtk_widget_queue_draw, self,
+			    "swapped-signal::notify::alive", gtk_widget_queue_draw, self,
+			    "swapped-signal::notify::roundtrip-time", gtk_widget_queue_draw, self,
+			    NULL);
+      }
+  }
+
+  override (Gtk:Widget) void
+    size_request (GtkWidget *widget, GtkRequisition *requisition)
+  {
+    Self *self = SELF(widget);
+    int num_bars;
+    int thickness;
+
+    num_bars = selfp->applet->hosts->len;
+    thickness = LM_BOX_BORDER_WIDTH * 2
+      + BAR_PADDING * 2
+      + num_bars * BAR_THICKNESS
+      + (num_bars - 1) * BAR_PADDING;
+
+    switch (selfp->orientation)
+      {
+      case LM_BAR_GRAPH_ORIENTATION_HORIZONTAL:
+	requisition->width = 0;
+	requisition->height = thickness;
+	break;
+
+      case LM_BAR_GRAPH_ORIENTATION_VERTICAL:
+	requisition->width = thickness;
+	requisition->height = 0;
+	break;
+
+      default:
+	g_assert_not_reached();
+	break;
+      }
+  }
+
+  override (Gtk:Widget) gboolean
+    expose_event (GtkWidget *widget, GdkEventExpose *event)
+  {
+    Self *self = SELF(widget);
+    GdkRectangle entire_rect;
+    GdkRectangle contents_rect;
+    int bar_x;
+    int bar_y;
+    int graph_width;
+    int graph_height;
+    cairo_t *cr;
+    int i;
+
+    if (! GTK_WIDGET_DRAWABLE(widget))
+      return FALSE;
+
+    switch (selfp->orientation)
+      {
+      case LM_BAR_GRAPH_ORIENTATION_HORIZONTAL:
+	entire_rect.x = widget->allocation.x;
+	lm_widget_get_origin(widget, ALIGN, ALIGN, NULL, &entire_rect.y);
+	entire_rect.width = widget->allocation.width;
+	entire_rect.height = widget->requisition.height;
+	break;
+
+      case LM_BAR_GRAPH_ORIENTATION_VERTICAL:
+	lm_widget_get_origin(widget, ALIGN, ALIGN, &entire_rect.x, NULL);
+	entire_rect.y = widget->allocation.y;
+	entire_rect.width = widget->requisition.width;
+	entire_rect.height = widget->allocation.height;
+	break;
+
+      default:
+	g_assert_not_reached();
+	break;
+      }
+
+    contents_rect.x = entire_rect.x + LM_BOX_BORDER_WIDTH;
+    contents_rect.y = entire_rect.y + LM_BOX_BORDER_WIDTH;
+    contents_rect.width = entire_rect.width - LM_BOX_BORDER_WIDTH * 2;
+    contents_rect.height = entire_rect.height - LM_BOX_BORDER_WIDTH * 2;
+
+    bar_x = contents_rect.x + BAR_PADDING;
+    bar_y = contents_rect.y + BAR_PADDING;
+    graph_width = contents_rect.width - BAR_PADDING * 2;
+    graph_height = contents_rect.height - BAR_PADDING * 2;
+
+    lm_paint_box(widget->window,
+		 GTK_WIDGET_STATE(widget),
+		 GTK_SHADOW_IN,
+		 &event->area,
+		 widget,
+		 widget->style->base_gc[GTK_WIDGET_STATE(widget)],
+		 entire_rect.x,
+		 entire_rect.y,
+		 entire_rect.width,
+		 entire_rect.height);
+
+    cr = gdk_cairo_create(widget->window);
+
+    cairo_set_line_width(cr, LINE_WIDTH);
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
+    cairo_set_line_join(cr, CAIRO_LINE_JOIN_MITER);
+
+    LM_ARRAY_FOREACH(i, selfp->applet->hosts)
+      {
+	LMHostFrontend *host = g_ptr_array_index(selfp->applet->hosts, i);
+
+	self_draw_bar(self,
+		      host,
+		      cr,
+		      bar_x,
+		      bar_y,
+		      graph_width,
+		      graph_height);
+
+	switch (selfp->orientation)
+	  {
+	  case LM_BAR_GRAPH_ORIENTATION_HORIZONTAL:
+	    bar_y += BAR_THICKNESS + BAR_PADDING;
+	    break;
+
+	  case LM_BAR_GRAPH_ORIENTATION_VERTICAL:
+	    bar_x += BAR_THICKNESS + BAR_PADDING;
+	    break;
+
+	  default:
+	    g_assert_not_reached();
+	    break;
+	  }
+      }
+
+    cairo_destroy(cr);
+
+    return FALSE;
+  }
+
+  private void
+    draw_bar (self,
+	      LM:Host:Frontend *host (check null type),
+	      cairo_t *cr (check null),
+	      int bar_x,
+	      int bar_y,
+	      int graph_width,
+	      int graph_height)
+  {
+    LMHost *base_host = LM_HOST(host);
+    GdkRectangle bar_rect;
+    LMCairoColor fill_color;
+    LMCairoColor border_color;
+    double fraction;
+
+    if (base_host->alive)
+      {
+	fraction = ((double) base_host->roundtrip_time / 1000) / selfp->applet->scale;
+	fraction = CLAMP(fraction, 0.0, 1.0);
+      }
+    else
+      fraction = 1.0;
+
+    switch (selfp->orientation)
+      {
+      case LM_BAR_GRAPH_ORIENTATION_HORIZONTAL:
+	bar_rect.width = fraction * graph_width;
+	bar_rect.height = BAR_THICKNESS;
+	bar_rect.x = bar_x;
+	bar_rect.y = bar_y;
+	break;
+
+      case LM_BAR_GRAPH_ORIENTATION_VERTICAL:
+	bar_rect.width = BAR_THICKNESS;
+	bar_rect.height = fraction * graph_height;
+	bar_rect.x = bar_x;
+	bar_rect.y = bar_y + graph_height - bar_rect.height;
+	break;
+
+      default:
+	g_assert_not_reached();
+	break;
+      }
+
+    /* setup a clip rectangle for the bar */
+    cairo_save(cr);
+    cairo_new_path(cr);
+    cairo_rectangle(cr, bar_rect.x, bar_rect.y, bar_rect.width, bar_rect.height);
+    cairo_clip(cr);
+    cairo_translate(cr, bar_rect.x, bar_rect.y);
+
+    lm_gdk_color_to_cairo_color(&host->color, &fill_color);
+    lm_cairo_color_shade(&fill_color, &border_color, 0.6);
+
+    /* draw the bar border */
+    lm_cairo_set_source_color(cr, &border_color);
+    cairo_rectangle(cr,
+		    LINE_WIDTH,
+		    LINE_WIDTH,
+		    bar_rect.width - LINE_WIDTH * 2,
+		    bar_rect.height - LINE_WIDTH * 2);
+    cairo_stroke_preserve(cr);
+
+    /* if the host is alive, fill the bar */
+    if (base_host->alive)
+      {
+	lm_cairo_set_source_color(cr, &fill_color);
+	cairo_fill(cr);
+      }
+
+    cairo_restore(cr);
+  }
+
+  public GtkWidget *
+    new (LM:Applet *applet (check null type))
+  {
+    return GTK_WIDGET(GET_NEW_VARG(LM_BAR_GRAPH_PROP_APPLET(applet), NULL));
+  }
+}

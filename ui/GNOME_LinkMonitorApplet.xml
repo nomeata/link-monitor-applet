@@ -1,0 +1,9 @@
+<Root>
+  <popups>
+    <popup name="button3">
+      <menuitem name="Link Monitor Preferences Item" verb="LinkMonitorPreferences" _label="_Preferences..." pixtype="stock" pixname="gtk-properties"/>
+      <menuitem name="Link Monitor Help Item" verb="LinkMonitorHelp" _label="_Help" pixtype="stock" pixname="gtk-help"/>
+      <menuitem name="Link Monitor About Item" verb="LinkMonitorAbout" _label="_About..." pixtype="stock" pixname="gnome-stock-about"/>
+    </popup>
+  </popups>
+</Root>

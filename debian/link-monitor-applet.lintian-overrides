@@ -1,0 +1,2 @@
+# setuid needed for applet to work correctly, root priviledges dropped after opening sockets
+link-monitor-applet binary: setuid-binary usr/lib/link-monitor-applet/link-monitor-applet 4755 root/root

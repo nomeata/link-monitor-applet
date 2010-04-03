@@ -1,0 +1,3 @@
+disable-scrollkeeper-update.diff
+gob2-2.0.16-compat.patch
+hide-icon-conditionally.patch

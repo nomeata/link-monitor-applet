@@ -1,0 +1,16 @@
+Index: link-monitor-applet/jbsrc/lib/jb-resource.c
+===================================================================
+--- link-monitor-applet.orig/jbsrc/lib/jb-resource.c	2008-03-30 21:09:01.000000000 +0200
++++ link-monitor-applet/jbsrc/lib/jb-resource.c	2008-03-30 21:09:44.000000000 +0200
+@@ -1473,9 +1473,11 @@
+ 
+   jb_action_install_data(outomf, omfdir);
+ 
++/*
+   jb_action_exec("-$scrollkeeper-update -p \"$destdir$scrollkeeper-dir\" -o \"$destdir$omfdir\"",
+ 		 "omfdir", omfdir,
+ 		 NULL);
++*/
+ 
+   g_free(outomf);
+   g_free(helpdir);

@@ -1,0 +1,142 @@
+link-monitor-applet (3.0-3) UNRELEASED; urgency=low
+
+  * New maintainer. (Closes: #569481)
+  * Builds from source now (Closes: #509260)
+  * Hide icon when more than one host is defined, using patch provided by
+    Octavio Alvarez (Closes: #476533)
+
+ -- Joachim Breitner <nomeata@debian.org>  Sat, 03 Apr 2010 17:57:21 +0200
+
+link-monitor-applet (3.0-2) unstable; urgency=low
+
+  * debian/rules:
+    - Make sure config.sub and config.guess do not end up in
+      diff (Closes: #482733)
+    - Switched to cdbs
+    - Removed now unused LDADD and CFLAGS settings
+  * Moved arch-indep files (mostly flags) to new package
+    link-monitor-applet-common
+  * debian/control:
+    - Added Build-Depends: cdbs (>= 0.4.52)
+    - Bumped Standards-Version to 3.8.0
+    - Added Replaces: link-monitor-applet (<= 3.0-1) for
+      link-monitor-applet-common
+  * Added debian/README.source
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Sun, 20 Jul 2008 08:37:14 +0000
+
+link-monitor-applet (3.0-1) unstable; urgency=low
+
+  * New upstream release
+  * Updated packaging for new upstream build system
+    - debian/control: Added Build-Depends: quilt
+    - debian/rules: use quilt for handling patches
+    - Removed patches help.C.Makefile.in.patch and help.omf.make.patch
+    - Added patch disable-scrollkeeper-update.diff
+  * debian/rules: removed Build-Depends: libeel2-dev
+  * debian/copyright:
+    - Added copyright declaration for external code
+    - The documentation is now licensed under GFDL 1.2
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Sun, 30 Mar 2008 22:26:13 +0200
+
+link-monitor-applet (2.2-1) unstable; urgency=low
+
+  * New upstream release
+  * debian/rules:
+    - Call ./configure with the correct build and host parameters
+  * debian/copyright:
+    - Corrected path to GPL license
+    - Updated license to GPL3 and GFDL and added license for Berkley code
+  * debian/control:
+    - Added missing Build-Depends: librsvg2-common to avoid configure warning
+      about country flags
+    - Bumped Standards-Version to 3.7.3, no changes needed
+  * debian/watch:
+    - Updated url
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Fri, 01 Feb 2008 16:42:03 +0100
+
+link-monitor-applet (2.1-2) unstable; urgency=low
+
+  * Make sure gconf is signalled: added Build-Depends
+    version for debhelper (>= 4.2.13)
+  * Fix lintian warning in debian/rules
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Fri, 28 Sep 2007 12:11:00 +0200
+
+link-monitor-applet (2.1-1) unstable; urgency=low
+
+  * New upstream release
+  * debian/control:
+    - Added Build-Depends: libgeoip-dev, libgtk2.0-dev (>= 2.8.0), gob2 (>= 2.0.14)
+    - Updated long description
+  * debian/patches:
+    - Removed po.fr.po.patch, fixed upstream
+    - Removed src.lm-util.c.patch, fixed upstream
+    - Removed src.Makefile.am.patch, fixed upstream
+    - Removed src.Makefile.in.patch, fixed upstream
+  * debian/control:
+    - Added Uploaders: Loic Minier <lool@dooz.org>
+  * debian/copyright:
+    - Changed license to GPL2
+    - Added license for art/flags
+    - Removed license for src/lm-icmp.c and src/lm-util.c
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Tue,  4 Jul 2006 14:27:46 +0200
+
+link-monitor-applet (1.3-5) unstable; urgency=low
+
+  * debian/rules:
+    - Worked around GCC 4.1 warning: added CFLAGS -fno-strict-aliasing
+    - Make sure gconf schemas are not installed at build time:
+      added ./configure parameter --disable-schemas-install
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Thu,  8 Jun 2006 09:21:28 +0200
+
+link-monitor-applet (1.3-4) unstable; urgency=low
+
+  * Fixed compatibility with eel2:
+    - Added patches/src.lm-util.c.patch (Closes: #367869)
+    - Added Build-Depends version: libeel2-dev (>= 2.14.1)
+  * Fixed libglade warnings:
+    - Link with -Wl,--export-dynamic
+  * Fixed uses of "connection" instead of "connexion" in the french
+    translation, patch by Loic Minier <lool@dooz.org> (Closes: #366496)
+  * Bumped Standards-Version to 3.7.2, no changes needed
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Thu, 18 May 2006 20:58:26 +0200
+
+link-monitor-applet (1.3-3) unstable; urgency=low
+
+  * debian/rules: Added dh_gconf to ensure registration of GConf schemas
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Fri,  3 Mar 2006 08:07:50 +0100
+
+link-monitor-applet (1.3-2) unstable; urgency=low
+
+  * Removed manpage
+  * Updated copyright
+    - Include documentation license
+    - Include secondary upstream author's copyright notice and license
+    - Specified files for which latter license applies
+  * Trimmed short description line really down to < 80 characters
+  * Added details to previous changelog
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Thu,  2 Mar 2006 14:24:03 +0100
+
+link-monitor-applet (1.3-1) unstable; urgency=low
+
+  * Initial release Closes: #329997
+  * Added patch for Makefile to fix $(DESTDIR) problems
+  * Added patch to avoid scrollkeeper-update execution at build time
+  * Added Depends: gnome-panel
+  * Added Build-Depends: libglade2-dev, libglib2.0-dev, libgtk2.0-dev, gob2,
+    gconf2, pkg-config
+  * Removed README from binary package
+  * Added lintian overrides
+  * Cleaned up debian/rules, added dh_scrollkeeper
+  * Changed section to gnome, trimmed short description
+
+ -- Adriaan Peeters <apeeters@lashout.net>  Thu, 16 Feb 2006 14:17:44 +0100
+

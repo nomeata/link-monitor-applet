@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/rules/utils.mk
+
+DEB_DH_INSTALL_SOURCEDIR:=debian/tmp
+DEB_FIXPERMS_EXCLUDE:=/usr/lib/link-monitor-applet/link-monitor-applet
+
+common-configure-arch common-configure-indep::
+	./jb configure cflags="$(CFLAGS)" prefix=/usr sysconfdir=/etc libexecdir=\$${prefix}/lib/link-monitor-applet destdir=$(DEB_DESTDIR)
+
+common-build-arch common-build-indep::
+	./jb build
+
+common-install-arch common-install-indep::
+	./jb install
+
+$(patsubst %,binary-install/%,$(DEB_PACKAGES)) :: binary-install/%:
+	dh_gconf -p$(cdbs_curpkg)
+
+clean::
+	rm -rf build
