@@ -1,11 +1,11 @@
-link-monitor-applet (3.0-3) UNRELEASED; urgency=low
+link-monitor-applet (3.0-3) unstable; urgency=low
 
   * New maintainer. (Closes: #569481)
   * Builds from source now (Closes: #509260)
   * Hide icon when more than one host is defined, using patch provided by
     Octavio Alvarez (Closes: #476533)
 
- -- Joachim Breitner <nomeata@debian.org>  Sat, 03 Apr 2010 17:57:21 +0200
+ -- Joachim Breitner <nomeata@debian.org>  Sat, 03 Apr 2010 18:55:02 +0200
 
 link-monitor-applet (3.0-2) unstable; urgency=low
 
