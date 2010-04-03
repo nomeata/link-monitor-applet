@@ -1,0 +1,18 @@
+===============================================================================
+ Link Monitor Applet credits
+===============================================================================
+
+Developed by Jean-Yves Lefort <jylefort@brutele.be>.
+
+Translators:
+	* Yavor Doganov <yavor@doganov.org> (Bulgarian)
+	* Gabriele Vivinetto <gabriele.vivinetto@rvmgroup.it> (Italian)
+
+External art sources (images taken as-is or slightly modified):
+	* GNOME Panel (link-monitor-applet.png)
+	* GNOME Applets (link-monitor-applet.png)
+	* openclipart.org (country flags)
+
+External code sources:
+	* Pidgin (src/lm-color-generator.*)
+	* Ubuntulooks (portions of src/lm-util.*)

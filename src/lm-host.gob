@@ -1,0 +1,472 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include "lm-icmp.h"
+%}
+
+%privateheader{
+#include <stdint.h>
+
+typedef struct
+{
+  LMTimeSpan	sent_time;
+} RequestInfo;
+
+/*
+ * We use multiple error levels to avoid UI flicker. For instance, if
+ * a single global error was used and ICMP error messages were
+ * continually received, the global error would quickly alternate
+ * between NULL (after an echo request is successfully sent) and the
+ * ICMP error received a couple of milliseconds later.
+ *
+ * Note that error levels must be kept sorted by decreasing priority.
+ */
+typedef enum
+{
+  ERROR_RESOLVE,
+  ERROR_SEND,
+  ERROR_RECEIVE,
+
+  NUM_ERRORS
+} Error;
+%}
+
+%{
+#include <string.h>
+#include <stdarg.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <glib/gi18n.h>
+#include "lm-util.h"
+#include "lm-applet.h"
+
+#ifndef HAVE_REENTRANT_RESOLVER
+G_LOCK_DEFINE_STATIC(resolver);
+#endif
+
+/* in milliseconds */
+#define MIN_TIMEOUT		100
+#define DEFAULT_TIMEOUT		1000
+%}
+
+class LM:Host (abstract)
+{
+  protected LMApplet *applet;
+  property POINTER applet (link, flags = CONSTRUCT_ONLY);
+
+  public char *name destroywith g_free;
+  property STRING name (flags = CONSTRUCT_ONLY, link);
+
+  private struct addrinfo *addrinfo destroywith freeaddrinfo;
+  private const LMSocket *sock;
+
+  public gboolean resolving;
+  property BOOLEAN resolving (link, export);
+
+  public char *ip destroywith g_free;
+  property STRING ip (link);
+
+  private int host_id;
+
+  private RequestInfo requests[256];
+  private uint8_t sent_seq;	/* seq of last echo request */
+
+  public gboolean alive;
+  property BOOLEAN alive (link, export);
+
+  private unsigned int resolve_timeout_id;
+  private unsigned int send_timeout_id;
+  private unsigned int dead_timeout_id;
+
+  private LMTimeSpan max_roundtrip_time;
+
+  public LMTimeSpan roundtrip_time;
+  property INT64 roundtrip_time (export, type = LMTimeSpan)
+    set
+    {
+      self->last_received_ticks = lm_get_ticks();
+      lm_source_clear(&selfp->dead_timeout_id);
+
+      self->roundtrip_time = g_value_get_int64(VAL);
+      if (self->roundtrip_time > selfp->max_roundtrip_time)
+	selfp->max_roundtrip_time = self->roundtrip_time;
+
+      self_set_alive(self, TRUE);
+    }
+    get
+    {
+      g_value_set_int64(VAL, self->roundtrip_time);
+    };
+
+  property STRING error
+    get
+    {
+      g_value_set_string(VAL, self_get_error(self));
+    };
+
+  private char *errors[NUM_ERRORS]
+    destroy
+    {
+      int i;
+
+      for (i = 0; i < G_N_ELEMENTS(VAR); i++)
+	g_free(VAR[i]);
+    };
+
+  public const char *
+    get_error (self)
+  {
+    int i;
+
+    for (i = 0; i < G_N_ELEMENTS(selfp->errors); i++)
+      if (selfp->errors[i])
+	return selfp->errors[i];
+
+    return NULL;
+  }
+
+  [G_GNUC_PRINTF(3, 4)]
+  private void
+    set_error (self, Error error, const char *format (check null), ...)
+  {
+    va_list args;
+    char *msg;
+
+    va_start(args, format);
+    msg = g_strdup_vprintf(format, args);
+    va_end(args);
+
+    g_free(selfp->errors[error]);
+    selfp->errors[error] = msg;
+
+    lm_source_clear(&selfp->dead_timeout_id);
+    self_set_alive(self, FALSE);
+
+    g_object_notify(G_OBJECT(self), "error");
+  }
+
+  private void
+    clear_error (self, Error error)
+  {
+    if (! selfp->errors[error])
+      return;
+
+    g_free(selfp->errors[error]);
+    selfp->errors[error] = NULL;
+
+    g_object_notify(G_OBJECT(self), "error");
+  }
+
+  public LMTimeSpan last_received_ticks;
+
+  constructor (self)
+  {
+    selfp->host_id = lm_shell_allocate_host_id(lm_shell, self);
+
+    lm_g_object_connect(self, self->applet,
+			"signal::notify::delay", self_delay_changed_h, self,
+			NULL);
+
+    self_resolve(self);
+  }
+
+  finalize (self)
+  {
+    if (selfp->resolve_timeout_id)
+      g_source_remove(selfp->resolve_timeout_id);
+    if (selfp->send_timeout_id)
+      g_source_remove(selfp->send_timeout_id);
+    if (selfp->dead_timeout_id)
+      g_source_remove(selfp->dead_timeout_id);
+
+    lm_shell_deallocate_host_id(lm_shell, selfp->host_id);
+  }
+
+  private void
+    resolve (self)
+  {
+    g_return_if_fail(self->resolving == FALSE);
+
+    self_set_resolving(self, TRUE);
+
+    g_object_ref(self);
+    lm_thread_create(self_resolve_thread_cb, self);
+  }
+
+  private gpointer
+    resolve_thread_cb (gpointer data)
+  {
+    Self *self = data;
+    struct addrinfo hints;
+    struct addrinfo *addrinfo;
+    char *ip = NULL;
+    int status;
+
+    memset(&hints, 0, sizeof(hints));
+#if WITH_IPV6
+    hints.ai_family = PF_UNSPEC;
+#else
+    hints.ai_family = PF_INET;
+#endif /* WITH_IPV6 */
+    hints.ai_socktype = SOCK_RAW;
+
+#ifndef HAVE_REENTRANT_RESOLVER
+    G_LOCK(resolver);
+#endif
+    status = getaddrinfo(self->name, NULL, &hints, &addrinfo);
+#ifndef HAVE_REENTRANT_RESOLVER
+    G_UNLOCK(resolver);
+#endif
+
+    if (status == 0)
+      {
+  	char buf[NI_MAXHOST];
+	int name_status;
+
+#ifndef HAVE_REENTRANT_RESOLVER
+	G_LOCK(resolver);
+#endif
+	name_status = getnameinfo(addrinfo->ai_addr,
+				  addrinfo->ai_addrlen,
+				  buf,
+				  sizeof(buf),
+				  NULL,
+				  0,
+				  NI_NUMERICHOST);
+#ifndef HAVE_REENTRANT_RESOLVER
+	G_UNLOCK(resolver);
+#endif
+
+	if (name_status == 0)
+	  ip = g_strdup(buf);
+      }
+    else
+      addrinfo = NULL;
+
+    GDK_THREADS_ENTER();
+
+    self_set_resolving(self, FALSE);
+
+    if (selfp->addrinfo)
+      freeaddrinfo(selfp->addrinfo);
+    selfp->addrinfo = addrinfo;
+
+    g_free(self->ip);
+    self->ip = g_strdup(ip);
+    g_object_notify(G_OBJECT(self), "ip");
+
+    if (selfp->addrinfo)
+      {
+	selfp->sock = lm_shell_get_socket(lm_shell, selfp->addrinfo->ai_family);
+	if (selfp->sock)
+	  {
+	    if (! selfp->sock->init_error)
+	      {
+		/* complete success */
+		self_clear_error(self, ERROR_RESOLVE);
+
+		if (! selfp->send_timeout_id)
+		  {
+		    self_send_echo_request(self);	/* send first packet */
+		    self_install_send_timeout(self);	/* install send loop */
+		  }
+	      }
+	    else
+	      self_set_error(self, ERROR_RESOLVE, _("socket could not be initialized: %s"), selfp->sock->init_error);
+	  }
+	else
+	  self_set_error(self, ERROR_RESOLVE, _("unsupported address family"));
+
+	/* DNS success (even if no socket), refresh in one hour */
+	self_install_resolve_timeout(self, 3600 * 1000);
+      }
+    else
+      {
+	selfp->sock = NULL;
+	self_set_error(self, ERROR_RESOLVE, _("unable to resolve hostname: %s"), gai_strerror(status));
+
+	/* DNS failure, retry in 10 seconds */
+	self_install_resolve_timeout(self, 10 * 1000);
+      }
+
+    /* if an error was installed above, remove the send timeout */
+    if (selfp->errors[ERROR_RESOLVE])
+      lm_source_clear(&selfp->send_timeout_id);
+
+    g_object_unref(self);
+
+    /*
+     * A note on gdk_flush(): as advised in the GDK threads
+     * documentation, we only call gdk_flush() from a thread other
+     * than our main thread.
+     */
+    gdk_flush();
+    GDK_THREADS_LEAVE();
+
+    return NULL;
+  }
+
+  private void
+    install_resolve_timeout (self, int delay)
+  {
+    g_return_if_fail(selfp->resolve_timeout_id == 0);
+    selfp->resolve_timeout_id = gdk_threads_add_timeout(delay, self_resolve_timeout_cb, self);
+  }
+
+  private gboolean
+    resolve_timeout_cb (gpointer data)
+  {
+    Self *self = data;
+
+    self_resolve(self);
+
+    selfp->resolve_timeout_id = 0;
+    return FALSE;		/* remove source */
+  }
+
+  private void
+    send_echo_request (self)
+  {
+    GError *err = NULL;
+
+    g_return_if_fail(selfp->sock != NULL);
+    g_return_if_fail(selfp->sock->init_error == NULL);
+    g_return_if_fail(selfp->addrinfo != NULL);
+
+    if (lm_icmp_send_echo_request(selfp->sock, selfp->addrinfo, selfp->host_id, selfp->sent_seq, &err))
+      {
+	RequestInfo *req;
+
+	req = &selfp->requests[selfp->sent_seq];
+	req->sent_time = lm_get_ticks();
+
+	selfp->sent_seq++;
+
+	self_clear_error(self, ERROR_SEND);
+
+	if (! selfp->dead_timeout_id)
+	  {
+	    int timeout;
+
+	    if (selfp->max_roundtrip_time > 0)
+	      {
+		timeout = (selfp->max_roundtrip_time / 1000) * 2;
+		if (timeout < MIN_TIMEOUT)
+		  timeout = MIN_TIMEOUT;
+	      }
+	    else
+	      timeout = DEFAULT_TIMEOUT;
+
+	    selfp->dead_timeout_id = gdk_threads_add_timeout(timeout, self_dead_timeout_cb, self);
+	  }
+      }
+    else
+      {
+	self_set_error(self, ERROR_SEND, _("unable to send echo request: %s"), err->message);
+	g_error_free(err);
+      }
+  }
+
+  private void
+    delay_changed_h (GObject *object, GParamSpec *pspec, gpointer user_data)
+  {
+    Self *self = user_data;
+
+    if (selfp->send_timeout_id)
+      {
+	lm_source_clear(&selfp->send_timeout_id);
+	self_install_send_timeout(self);
+      }
+    /* else we cannot send packets: do not install the send timeout */
+  }
+
+  private void
+    install_send_timeout (self)
+  {
+    g_return_if_fail(selfp->send_timeout_id == 0);
+    g_return_if_fail(selfp->sock != NULL);
+    g_return_if_fail(selfp->sock->init_error == NULL);
+    g_return_if_fail(selfp->addrinfo != NULL);
+
+    selfp->send_timeout_id = gdk_threads_add_timeout(self->applet->delay, self_send_timeout_cb, self);
+  }
+
+  private gboolean
+    send_timeout_cb (gpointer data)
+  {
+    Self *self = data;
+
+    self_send_echo_request(self);
+
+    return TRUE;		/* keep source */
+  }
+
+  private gboolean
+    dead_timeout_cb (gpointer data)
+  {
+    Self *self = data;
+
+    self_set_alive(self, FALSE);
+
+    selfp->dead_timeout_id = 0;
+    return FALSE;		/* remove source */
+  }
+
+  public void
+    reply_received (self, const LMICMPReply *reply (check null))
+  {
+    RequestInfo *req;
+
+    /*
+     * If there is no send timeout, an error (DNS or socket) has
+     * occurred and we are unable to send packets: ignore this reply,
+     * otherwise we would set alive back to TRUE.
+     */
+    if (! selfp->send_timeout_id)
+      return;
+
+    req = &selfp->requests[reply->seq];
+    if (! req->sent_time)
+      return; /* no matching request, ignore */
+
+    if (reply->received_time < req->sent_time)
+      /*
+       * Negative roundtrip-time: this should not normally happen
+       * since we use a monotonic clock source, but it is possible
+       * that the OS improperly implements it, or that the monitored
+       * host returns garbage, etc. Acknowledge the reply but
+       * otherwise ignore it.
+       */
+      goto end;
+
+    if (reply->error)
+      self_set_error(self, ERROR_RECEIVE, "%s", reply->error);
+    else
+      {
+	self_clear_error(self, ERROR_RECEIVE);
+	self_set_roundtrip_time(self, reply->received_time - req->sent_time);
+      }
+
+  end:
+    /* we have matched the request, clear it */
+    req->sent_time = 0;
+  }
+}

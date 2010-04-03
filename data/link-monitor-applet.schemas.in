@@ -1,0 +1,64 @@
+<gconfschemafile>
+  <schemalist>
+    <schema>
+      <key>/schemas/apps/link-monitor-applet/prefs/hosts</key>
+      <owner>link-monitor-applet</owner>
+      <type>list</type>
+      <list_type>string</list_type>
+      <locale name="C">
+        <short>Hosts list</short>
+	<long>The list of hosts to monitor.</long>
+      </locale>
+    </schema>
+    <schema>
+      <key>/schemas/apps/link-monitor-applet/prefs/delay</key>
+      <owner>link-monitor-applet</owner>
+      <type>int</type>
+      <default>1000</default>
+      <locale name="C">
+        <short>Delay between echo requests</short>
+        <long>The amount of time to wait between sending each echo request to a particular host, in milliseconds.</long>
+      </locale>
+    </schema>
+    <schema>
+      <key>/schemas/apps/link-monitor-applet/prefs/scale</key>
+      <owner>link-monitor-applet</owner>
+      <type>int</type>
+      <default>500</default>
+      <locale name="C">
+        <short>Graphs scale</short>
+        <long>The scale of the graphs, in milliseconds.</long>
+      </locale>
+    </schema>
+    <schema>
+      <key>/schemas/apps/link-monitor-applet/prefs/tooltip_graph_span</key>
+      <owner>link-monitor-applet</owner>
+      <type>int</type>
+      <default>60</default>
+      <locale name="C">
+        <short>Tooltip graph span</short>
+        <long>The span of the tooltip graph, in seconds.</long>
+      </locale>
+    </schema>
+    <schema>
+      <key>/schemas/apps/link-monitor-applet/prefs/preferences_width</key>
+      <owner>link-monitor-applet</owner>
+      <type>int</type>
+      <default>-1</default>
+      <locale name="C">
+        <short>Width of the preferences dialog</short>
+        <long>The width of the preferences dialog.</long>
+      </locale>
+    </schema>
+    <schema>
+      <key>/schemas/apps/link-monitor-applet/prefs/preferences_height</key>
+      <owner>link-monitor-applet</owner>
+      <type>int</type>
+      <default>400</default>
+      <locale name="C">
+        <short>Height of the preferences dialog</short>
+        <long>The height of the preferences dialog.</long>
+      </locale>
+    </schema>
+  </schemalist>
+</gconfschemafile>

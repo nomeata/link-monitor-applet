@@ -1,0 +1,395 @@
+# Italian translations for link-monitor-applet.
+# Copyright (c) 2004-2008 Jean-Yves Lefort.
+#
+# This file is distributed under the same license as the
+# link-monitor-applet package.
+#
+# Gabriele Vivinetto <gabriele.vivinetto@rvmgroup.it>, 2008.
+# Jean-Yves Lefort <jylefort@brutele.be>, 2008.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: link-monitor-applet 3.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2008-02-20 00:23+0100\n"
+"PO-Revision-Date: 2008-02-03 16:18+0100\n"
+"Last-Translator: Gabriele Vivinetto <gabriele.mailing@rvmgroup.it>\n"
+"Language-Team: Italian\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. translators: header capitalization
+#: ../data/GNOME_LinkMonitorApplet.server.in.in.h:1
+#: ../src/lm-about-dialog.gob:46
+msgid "Link Monitor"
+msgstr "Link Monitor"
+
+#: ../data/GNOME_LinkMonitorApplet.server.in.in.h:2
+msgid "Monitor the round-trip time to one or more hosts"
+msgstr "Controlla il tempo di raggiungimento di uno o più hosts"
+
+#: ../data/link-monitor-applet.schemas.in.h:1
+msgid "Delay between echo requests"
+msgstr "Ritardo tra le richieste di echo"
+
+#: ../data/link-monitor-applet.schemas.in.h:2
+msgid "Graphs scale"
+msgstr "Scala dei grafici"
+
+#: ../data/link-monitor-applet.schemas.in.h:3
+msgid "Height of the preferences dialog"
+msgstr "Altezza della finestra preferenze"
+
+#: ../data/link-monitor-applet.schemas.in.h:4
+msgid "Hosts list"
+msgstr "Elenco hosts"
+
+#: ../data/link-monitor-applet.schemas.in.h:5
+msgid ""
+"The amount of time to wait between sending each echo request to a particular "
+"host, in milliseconds."
+msgstr ""
+"La quantità di tempo da attendere per l'invio di ogni richiesta di echo a un "
+"particolare host, in millisecondi."
+
+#: ../data/link-monitor-applet.schemas.in.h:6
+msgid "The height of the preferences dialog."
+msgstr "L'altezza della finestra preferenze."
+
+#: ../data/link-monitor-applet.schemas.in.h:7
+msgid "The list of hosts to monitor."
+msgstr "La lista degli host da monitorare."
+
+#: ../data/link-monitor-applet.schemas.in.h:8
+msgid "The scale of the graphs, in milliseconds."
+msgstr "La scala dei grafici, in millisecondi."
+
+#: ../data/link-monitor-applet.schemas.in.h:9
+msgid "The span of the tooltip graph, in seconds."
+msgstr "L'ampiezza del grafico tooltip, in secondi."
+
+#: ../data/link-monitor-applet.schemas.in.h:10
+msgid "The width of the preferences dialog."
+msgstr "La larghezza della finestra preferenze"
+
+#: ../data/link-monitor-applet.schemas.in.h:11
+msgid "Tooltip graph span"
+msgstr "Ampiezza del grafico tooltip"
+
+#: ../data/link-monitor-applet.schemas.in.h:12
+msgid "Width of the preferences dialog"
+msgstr "Larghezza della finestra preferenze"
+
+#: ../src/lm-about-dialog.gob:49
+msgid "The link monitor displays the round-trip time to one or more hosts."
+msgstr "Il link monitor mostra il tempo di raggiungimento di uno o più hosts."
+
+#.
+#. * translators: Your Name <your-email>
+#. * optionally followed by one or more: \nOther Contributor's Name <his-email>
+#.
+#: ../src/lm-about-dialog.gob:57
+msgid "translator-credits"
+msgstr ""
+"Gabriele Vivinetto <gabriele.mailing@rvmgroup.it>\n"
+"Jean-Yves Lefort <jylefort@brutele.be>"
+
+#: ../src/lm-about-dialog.gob:78
+msgid "Unable to open link"
+msgstr "Impossibile aprire il link"
+
+#: ../src/lm-applet.gob:569
+msgid "No host is being monitored."
+msgstr "Nessun host da monitorare"
+
+#: ../src/lm-host-frontend.gob:205
+#, c-format
+msgid "last reply: %i” ago"
+msgstr "ultima risposta: %i” fa"
+
+#: ../src/lm-host-frontend.gob:207
+#, c-format
+msgid "last reply: %.2i:%.2i” ago"
+msgstr "ultima risposta: %.2i:%.2i” fa"
+
+#: ../src/lm-host-frontend.gob:209
+#, c-format
+msgid "last reply: %.2i:%.2i:%.2i” ago"
+msgstr "ultima risposta: %.2i:%.2i:%.2i” fa"
+
+#: ../src/lm-host-frontend.gob:236
+msgid "resolving hostname"
+msgstr "stò risolvendo l'hostname"
+
+#: ../src/lm-host-frontend.gob:262
+#, c-format
+msgid "%i ms"
+msgstr "%i ms"
+
+#: ../src/lm-host-view.gob:122 ../ui/preferences-dialog.glade.h:5
+msgid "Move _Up"
+msgstr "Sposta _su"
+
+#: ../src/lm-host-view.gob:123 ../ui/preferences-dialog.glade.h:4
+msgid "Move _Down"
+msgstr "Sposta _giù"
+
+#: ../src/lm-host-view.gob:149
+msgid "Color"
+msgstr "Colore"
+
+#: ../src/lm-host-view.gob:164
+msgid "Host"
+msgstr "Host"
+
+#: ../src/lm-host-view.gob:598
+msgid "Pick a Color"
+msgstr "Scegli un Colore"
+
+#: ../src/lm-host.gob:293
+#, c-format
+msgid "socket could not be initialized: %s"
+msgstr "il socket non può essere inizializzato: %s"
+
+#: ../src/lm-host.gob:296
+msgid "unsupported address family"
+msgstr "famiglia di indirizzi non supportata"
+
+#: ../src/lm-host.gob:304
+#, c-format
+msgid "unable to resolve hostname: %s"
+msgstr "impossibile risolvere l'hostname %s"
+
+#: ../src/lm-host.gob:383
+#, c-format
+msgid "unable to send echo request: %s"
+msgstr "impossibile inviare la richiesta di echo: %s"
+
+#: ../src/lm-icmp.c:203
+#, c-format
+msgid "could not send whole packet"
+msgstr "non posso inviare l'intero pacchetto"
+
+#: ../src/lm-icmp.c:255
+msgid "destination network unreachable"
+msgstr "rete di destinazione irraggiungibile"
+
+#: ../src/lm-icmp.c:256 ../src/lm-icmp.c:320
+msgid "destination host unreachable"
+msgstr "host di destinazione irraggiungibile"
+
+#: ../src/lm-icmp.c:257
+msgid "destination protocol unreachable"
+msgstr "protocollo di destinazione irraggiungibile"
+
+#: ../src/lm-icmp.c:258 ../src/lm-icmp.c:321
+msgid "destination port unreachable"
+msgstr "porta di destinazione irraggiungibile"
+
+#: ../src/lm-icmp.c:259
+msgid "fragmentation needed and DF set"
+msgstr ""
+
+#: ../src/lm-icmp.c:260
+msgid "source route failed"
+msgstr ""
+
+#: ../src/lm-icmp.c:261
+msgid "communication prohibited by filter"
+msgstr "comunicazione proibita da un filtro"
+
+#: ../src/lm-icmp.c:262
+msgid "destination unreachable, unknown ICMP code"
+msgstr "destinazione irraggiungibile, codice ICMP sconosciuto"
+
+#: ../src/lm-icmp.c:267 ../src/lm-icmp.c:328
+msgid "time to live exceeded"
+msgstr "time to live superato"
+
+#: ../src/lm-icmp.c:268 ../src/lm-icmp.c:329
+msgid "fragment reassembly time exceeded"
+msgstr ""
+
+#: ../src/lm-icmp.c:269
+msgid "time exceeded, unknown ICMP code"
+msgstr "time to live superato, codice ICMP sconosciuto"
+
+#: ../src/lm-icmp.c:271
+msgid "parameter problem"
+msgstr ""
+
+#: ../src/lm-icmp.c:272
+msgid "source quench"
+msgstr ""
+
+#: ../src/lm-icmp.c:276
+msgid "redirect network"
+msgstr ""
+
+#: ../src/lm-icmp.c:277
+msgid "redirect host"
+msgstr ""
+
+#: ../src/lm-icmp.c:278
+msgid "redirect type of service and network"
+msgstr ""
+
+#: ../src/lm-icmp.c:279
+msgid "redirect type of service and host"
+msgstr ""
+
+#: ../src/lm-icmp.c:280
+msgid "redirect, unknown ICMP code"
+msgstr ""
+
+#: ../src/lm-icmp.c:317
+msgid "no route to destination"
+msgstr ""
+
+#: ../src/lm-icmp.c:318
+msgid "destination administratively unreachable"
+msgstr ""
+
+#: ../src/lm-icmp.c:319
+msgid "destination unreachable beyond scope"
+msgstr ""
+
+#: ../src/lm-icmp.c:322
+msgid "destination unreachable, unknown ICMPv6 code"
+msgstr ""
+
+#: ../src/lm-icmp.c:324
+msgid "packet too big"
+msgstr ""
+
+#: ../src/lm-icmp.c:330
+msgid "time exceeded, unknown ICMPv6 code"
+msgstr ""
+
+#: ../src/lm-icmp.c:335
+msgid "parameter problem: erroneous header"
+msgstr ""
+
+#: ../src/lm-icmp.c:336
+msgid "parameter problem: unknown next header"
+msgstr ""
+
+#: ../src/lm-icmp.c:337
+msgid "parameter problem: unrecognized option"
+msgstr ""
+
+#: ../src/lm-icmp.c:338
+msgid "parameter problem, unknown ICMPv6 code"
+msgstr ""
+
+#: ../src/lm-line-graph.gob:273
+#, c-format
+msgid "%.*f ms"
+msgstr ""
+
+#. translators: header capitalization
+#: ../src/lm-main.c:80 ../src/lm-main.c:97
+msgid "Link Monitor Applet"
+msgstr "Link Monitor Applet"
+
+#. translators: header capitalization
+#: ../src/lm-preferences-dialog.gob:112 ../ui/preferences-dialog.glade.h:3
+msgid "Link Monitor Preferences"
+msgstr "Preferenze di Link Monitor"
+
+#: ../src/lm-preferences-dialog.gob:184
+msgid "No host selected."
+msgstr "Nessun host selezionato."
+
+#: ../src/lm-preferences-dialog.gob:189
+#, c-format
+msgid "%i host selected."
+msgid_plural "%i hosts selected."
+msgstr[0] "%i host selezionato"
+msgstr[1] "%i host selezionati"
+
+#: ../src/lm-preferences-dialog.gob:299
+#, c-format
+msgid "%i millisecond"
+msgid_plural "%i milliseconds"
+msgstr[0] "%i millisecondo"
+msgstr[1] "%i millisecondi"
+
+#: ../src/lm-preferences-dialog.gob:303
+#, c-format
+msgid "%i second"
+msgid_plural "%i seconds"
+msgstr[0] "%i secondo"
+msgstr[1] "%i secondi"
+
+#: ../src/lm-preferences-dialog.gob:308
+#, c-format
+msgid "%i minute"
+msgid_plural "%i minutes"
+msgstr[0] "%i minuto"
+msgstr[1] "%i minuti"
+
+#: ../src/lm-preferences-dialog.gob:313
+#, c-format
+msgid "%i hour"
+msgid_plural "%i hours"
+msgstr[0] "%i ora"
+msgstr[1] "%i ore"
+
+#: ../src/lm-preferences-dialog.gob:318
+#, c-format
+msgid "%i day"
+msgid_plural "%i days"
+msgstr[0] "%i giorno"
+msgstr[1] "%i giorni"
+
+#: ../src/lm-preferences-dialog.gob:323
+msgid "1 week"
+msgstr "1 settimana"
+
+#: ../src/lm-shell.gob:107
+#, c-format
+msgid "unable to set O_NONBLOCK flag: %s"
+msgstr ""
+
+#: ../src/lm-util.c:256
+msgid "Unable to display help"
+msgstr "Impossibile mostrare l'aiuto"
+
+#: ../src/lm-util.c:396
+msgid "A fatal error has occurred in the link monitor"
+msgstr "E' accaduto un errore fatale in link monitor"
+
+#: ../ui/GNOME_LinkMonitorApplet.xml.h:1
+msgid "_About..."
+msgstr "I_nformazioni..."
+
+#: ../ui/GNOME_LinkMonitorApplet.xml.h:2
+msgid "_Help"
+msgstr "_Aiuto"
+
+#: ../ui/GNOME_LinkMonitorApplet.xml.h:3
+msgid "_Preferences..."
+msgstr "_Preferenze..."
+
+#: ../ui/preferences-dialog.glade.h:1
+msgid "<span weight=\"bold\">General</span>"
+msgstr "<span weight=\"bold\">Generale</span>"
+
+#: ../ui/preferences-dialog.glade.h:2
+msgid "<span weight=\"bold\">Hosts</span>"
+msgstr "<span weight=\"bold\">Hosts</span>"
+
+#: ../ui/preferences-dialog.glade.h:6
+msgid "_Delay between echo requests:"
+msgstr "_Ritardo tra le richieste di echo:"
+
+#: ../ui/preferences-dialog.glade.h:7
+msgid "_Graphs scale:"
+msgstr "_Scala dei grafici:"
+
+#: ../ui/preferences-dialog.glade.h:8
+msgid "_Tooltip graph span:"
+msgstr "_Ampiezza del grafico tooltip:"

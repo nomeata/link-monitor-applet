@@ -1,0 +1,326 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include "lm-dialog.h"
+#include "lm-non-linear-range.h"
+%}
+
+%h{
+extern const LMNonLinearRangeBlock lm_preferences_dialog_tooltip_graph_span_blocks[];
+extern const int lm_preferences_dialog_num_tooltip_graph_span_blocks;
+%}
+
+%privateheader{
+#include "lm-applet.h"
+%}
+
+%{
+#include <glib/gi18n.h>
+#include "lm-util.h"
+#include "lm-host-view.h"
+#include "lm-non-linear-range.h"
+
+#define MSECS(n)	(n)
+#define SECS(n)		((n) * 1000)
+#define MINS(n)		((n) * 60000)
+#define HOURS(n)	((n) * 3600000)
+#define DAYS(n)		((n) * 86400000)
+
+static const LMNonLinearRangeBlock delay_blocks[] = {
+  { MSECS(200),	MSECS(1000),	MSECS(100)	},
+  { SECS(2),	SECS(10),	SECS(1)		}
+};
+
+static const LMNonLinearRangeBlock scale_blocks[] = {
+  { MSECS(1),	MSECS(10),	MSECS(1)	},
+  { MSECS(20),	MSECS(100),	MSECS(10)	},
+  { MSECS(200),	MSECS(1000),	MSECS(100)	},
+  { SECS(2),	SECS(5),	SECS(1)		}
+};
+
+const LMNonLinearRangeBlock lm_preferences_dialog_tooltip_graph_span_blocks[] = {
+  { SECS(10),	SECS(60),	SECS(10)	},
+  { MINS(2),	MINS(10),	MINS(1)		},
+  { MINS(15),	MINS(60),	MINS(5)		},
+  { HOURS(2),	HOURS(24),	HOURS(1)	},
+  { DAYS(2),	DAYS(7),	DAYS(1)		}
+};
+
+const int lm_preferences_dialog_num_tooltip_graph_span_blocks = G_N_ELEMENTS(lm_preferences_dialog_tooltip_graph_span_blocks);
+%}
+
+class LM:Preferences:Dialog from LM:Dialog
+{
+  private LMApplet *applet;
+  property POINTER applet (link, flags = CONSTRUCT_ONLY);
+
+  private GtkWidget *scrolled;
+  private GtkWidget *list;
+  private GtkWidget *selected_label;
+  private GtkWidget *add;
+  private GtkWidget *remove;
+  private GtkWidget *up;
+  private GtkWidget *down;
+  private GtkWidget *delay_label;
+  private GtkWidget *delay_scale;
+  private GtkWidget *scale_label;
+  private GtkWidget *scale_scale;
+  private GtkWidget *tooltip_graph_span_label;
+  private GtkWidget *tooltip_graph_span_scale;
+
+  constructor (self)
+  {
+    GtkSizeGroup *size_group;
+    GtkTreeSelection *selection;
+
+    lm_container_create_interface(GTK_CONTAINER(self),
+				  PKGDATADIR G_DIR_SEPARATOR_S "preferences-dialog.glade",
+				  "vbox",
+				  "lm_preferences_dialog_",
+				  "scrolled", &selfp->scrolled,
+				  "selected_label", &selfp->selected_label,
+				  "add", &selfp->add,
+				  "remove", &selfp->remove,
+				  "up", &selfp->up,
+				  "down", &selfp->down,
+				  "delay_label", &selfp->delay_label,
+				  "delay_scale", &selfp->delay_scale,
+				  "scale_label", &selfp->scale_label,
+				  "scale_scale", &selfp->scale_scale,
+				  "tooltip_graph_span_label", &selfp->tooltip_graph_span_label,
+				  "tooltip_graph_span_scale", &selfp->tooltip_graph_span_scale,
+				  NULL);
+
+    /* translators: header capitalization */
+    gtk_window_set_title(GTK_WINDOW(self), _("Link Monitor Preferences"));
+    gtk_dialog_add_buttons(GTK_DIALOG(self),
+			   GTK_STOCK_HELP, GTK_RESPONSE_HELP,
+			   GTK_STOCK_CLOSE, GTK_RESPONSE_CLOSE,
+			   NULL);
+
+    selfp->list = lm_host_view_new(selfp->applet);
+    gtk_container_add(GTK_CONTAINER(selfp->scrolled), selfp->list);
+    gtk_widget_show(selfp->list);
+
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(selfp->list));
+    g_signal_connect_swapped(selection, "changed", G_CALLBACK(self_update_selected_label), self);
+
+    g_object_connect(selfp->list,
+		     "swapped-signal::notify::editing-host", self_update_sensitivity, self,
+		     "swapped-signal::notify::can-go-up", self_update_sensitivity, self,
+		     "swapped-signal::notify::can-go-down", self_update_sensitivity, self,
+		     NULL);
+
+    lm_g_object_connect(self, lm_shell,
+			"swapped-signal::notify::host-count", self_update_sensitivity, self,
+			NULL);
+
+    size_group = gtk_size_group_new(GTK_SIZE_GROUP_HORIZONTAL);
+    gtk_size_group_add_widget(size_group, selfp->delay_label);
+    gtk_size_group_add_widget(size_group, selfp->scale_label);
+    gtk_size_group_add_widget(size_group, selfp->tooltip_graph_span_label);
+    g_object_unref(size_group);
+
+    /* set the options */
+
+    gtk_window_set_default_size(GTK_WINDOW(self),
+				selfp->applet->preferences_width,
+				selfp->applet->preferences_height);
+
+    lm_non_linear_range_setup_static(GTK_RANGE(selfp->delay_scale), delay_blocks, G_N_ELEMENTS(delay_blocks));
+    lm_non_linear_range_set_value(GTK_RANGE(selfp->delay_scale), selfp->applet->delay);
+
+    lm_non_linear_range_setup_static(GTK_RANGE(selfp->scale_scale), scale_blocks, G_N_ELEMENTS(scale_blocks));
+    lm_non_linear_range_set_value(GTK_RANGE(selfp->scale_scale), selfp->applet->scale);
+
+    lm_non_linear_range_setup_static(GTK_RANGE(selfp->tooltip_graph_span_scale), lm_preferences_dialog_tooltip_graph_span_blocks, G_N_ELEMENTS(lm_preferences_dialog_tooltip_graph_span_blocks));
+    lm_non_linear_range_set_value(GTK_RANGE(selfp->tooltip_graph_span_scale), selfp->applet->tooltip_graph_span * 1000);
+
+    self_update_selected_label(self);
+    self_update_sensitivity(self);
+
+    g_object_connect(self,
+		     "signal::response", self_response_h, NULL,
+		     "signal::configure-event", self_configure_event_h, NULL,
+		     NULL);
+
+    /*
+     * HIG chapter 3:
+     * "When opening a dialog, provide initial keyboard focus to the
+     * component that you expect users to operate first. This focus is
+     * especially important for users who must use a keyboard to
+     * navigate your application."
+     */
+    gtk_widget_grab_focus(selfp->add);
+  }
+
+  private void
+    update_selected_label (self)
+  {
+    GtkTreeSelection *selection;
+    int n_rows;
+
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(selfp->list));
+    n_rows = gtk_tree_selection_count_selected_rows(selection);
+
+    if (n_rows == 0)
+      gtk_label_set_text(GTK_LABEL(selfp->selected_label), _("No host selected."));
+    else
+      {
+	char *str;
+
+	str = g_strdup_printf(ngettext("%i host selected.",
+				       "%i hosts selected.",
+				       n_rows), n_rows);
+	gtk_label_set_text(GTK_LABEL(selfp->selected_label), str);
+	g_free(str);
+      }
+  }
+
+  private void
+    update_sensitivity (self)
+  {
+    GtkTreeSelection *selection;
+    int n_rows;
+    gboolean editing;
+    int host_count;
+
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(selfp->list));
+    n_rows = gtk_tree_selection_count_selected_rows(selection);
+    editing = LM_HOST_VIEW(selfp->list)->editing_host;
+
+    host_count = lm_shell_get_host_count(lm_shell);
+
+    gtk_widget_set_sensitive(selfp->add, ! editing && host_count < LM_MAX_HOSTS);
+    gtk_widget_set_sensitive(selfp->remove, ! editing && n_rows > 0);
+    gtk_widget_set_sensitive(selfp->up, ! editing && LM_HOST_VIEW(selfp->list)->can_go_up);
+    gtk_widget_set_sensitive(selfp->down, ! editing && LM_HOST_VIEW(selfp->list)->can_go_down);
+  }
+
+  private void
+    response_h (GtkDialog *dialog,
+		int response,
+		gpointer user_data)
+  {
+    switch (response)
+      {
+      case GTK_RESPONSE_HELP:
+	lm_show_help("preferences");
+	break;
+
+      case GTK_RESPONSE_CLOSE:
+	gtk_widget_destroy(GTK_WIDGET(dialog));
+	break;
+      }
+  }
+
+  private gboolean
+    configure_event_h (GtkWidget *widget,
+		       GdkEventConfigure *event,
+		       gpointer user_data)
+  {
+    Self *self = SELF(widget);
+
+    lm_applet_set_preferences_width(selfp->applet, event->width);
+    lm_applet_set_preferences_height(selfp->applet, event->height);
+
+    return FALSE;			/* propagate event */
+  }
+
+  /* libglade callbacks */
+
+  protected void
+    add_clicked_h (self, GtkButton *button)
+  {
+    lm_host_view_activate_add(LM_HOST_VIEW(selfp->list));
+  }
+
+  protected void
+    remove_clicked_h (self, GtkButton *button)
+  {
+    lm_host_view_activate_remove(LM_HOST_VIEW(selfp->list));
+  }
+
+  protected void
+    up_clicked_h (self, GtkButton *button)
+  {
+    lm_host_view_activate_move(LM_HOST_VIEW(selfp->list), -1);
+  }
+
+  protected void
+    down_clicked_h (self, GtkButton *button)
+  {
+    lm_host_view_activate_move(LM_HOST_VIEW(selfp->list), +1);
+  }
+
+  protected void
+    delay_scale_value_changed_h (self, GtkRange *range)
+  {
+    lm_applet_set_delay(selfp->applet, lm_non_linear_range_get_value(range));
+  }
+
+  protected void
+    scale_scale_value_changed_h (self, GtkRange *range)
+  {
+    lm_applet_set_scale(selfp->applet, lm_non_linear_range_get_value(range));
+  }
+
+  protected void
+    tooltip_graph_span_scale_value_changed_h (self, GtkRange *range)
+  {
+    lm_applet_set_tooltip_graph_span(selfp->applet, lm_non_linear_range_get_value(range) / 1000);
+  }
+
+  protected char *
+    scale_format_value_h (self, double arg, GtkScale *scale)
+  {
+    int v;
+
+    v = lm_non_linear_range_get_value(GTK_RANGE(scale));
+
+    if (v < SECS(1))
+      return g_strdup_printf(ngettext("%i millisecond", "%i milliseconds", v), v);
+    else if (v < MINS(1))
+      {
+	int secs = v / SECS(1);
+	return g_strdup_printf(ngettext("%i second", "%i seconds", secs), secs);
+      }
+    else if (v < HOURS(1))
+      {
+	int mins = v / MINS(1);
+	return g_strdup_printf(ngettext("%i minute", "%i minutes", mins), mins);
+      }
+    else if (v < DAYS(1))
+      {
+	int hours = v / HOURS(1);
+	return g_strdup_printf(ngettext("%i hour", "%i hours", hours), hours);
+      }
+    else if (v < DAYS(7))
+      {
+	int days = v / DAYS(1);
+	return g_strdup_printf(ngettext("%i day", "%i days", days), days);
+      }
+    else
+      {
+	g_return_val_if_fail(v == DAYS(7), NULL);
+	return g_strdup(_("1 week"));
+      }
+  }
+}

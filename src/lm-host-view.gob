@@ -1,0 +1,972 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gtk/gtk.h>
+#include "lm-applet.h"
+%}
+
+%{
+#include <glib/gi18n.h>
+#include "lm-cell-renderer-color.h"
+#include "lm-host-frontend.h"
+#include "lm-util.h"
+
+enum {
+  COLUMN_HOST,
+  COLUMN_COLOR,
+  COLUMN_NAME,
+  N_COLUMNS
+};
+
+typedef enum {
+  CLIPBOARD_TARGET_NATIVE,
+  CLIPBOARD_TARGET_TEXT
+} ClipboardTarget;
+
+#define CLIPBOARD_TARGET_NATIVE_NAME	"x-special/link-monitor-applet-hosts"
+
+static GdkAtom clipboard_target_native_atom;
+
+static GtkClipboard *global_clipboard;
+%}
+
+class LM:Host:View from Gtk:Tree:View
+{
+  private LMApplet *applet;
+  property POINTER applet (link, flags = CONSTRUCT_ONLY);
+
+  private GtkWidget *menu = {gtk_menu_new()} destroywith gtk_widget_destroy;
+  private GtkWidget *remove_item;
+  private GtkWidget *up_item;
+  private GtkWidget *down_item;
+  private GtkWidget *cut_item;
+  private GtkWidget *copy_item;
+  private GtkWidget *paste_item;
+  private GtkWidget *select_all_item;
+
+  private int add_pending_count;
+  private GtkTreeIter add_pending_iter;
+
+  public gboolean editing_host;
+  property BOOLEAN editing_host (link, export);
+
+  public gboolean can_go_up;
+  property BOOLEAN can_go_up (link, export);
+
+  public gboolean can_go_down;
+  property BOOLEAN can_go_down (link, export);
+
+  private GtkWidget *color_dialog destroywith gtk_widget_destroy;
+  private GtkTreeRowReference *color_dialog_row_reference;
+
+  class_init (class)
+  {
+    GtkBindingSet *binding_set;
+
+    global_clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+
+    clipboard_target_native_atom = gdk_atom_intern(CLIPBOARD_TARGET_NATIVE_NAME, FALSE);
+
+    binding_set = gtk_binding_set_by_class(class);
+
+    /* Delete removes a row */
+    gtk_binding_entry_add_signal(binding_set, GDK_Delete, 0, "activate-remove", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KP_Delete, 0, "activate-remove", 0);
+
+    /* HIG 2.0 cut/copy/paste shortcuts */
+    gtk_binding_entry_add_signal(binding_set, GDK_x, GDK_CONTROL_MASK, "activate-cut", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_c, GDK_CONTROL_MASK, "activate-copy", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_v, GDK_CONTROL_MASK, "activate-paste", 0);
+
+    /* cut/copy/paste shortcuts taken from gtkentry.c */
+    gtk_binding_entry_add_signal(binding_set, GDK_Delete, GDK_SHIFT_MASK, "activate-cut", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_Insert, GDK_CONTROL_MASK, "activate-copy", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_Insert, GDK_SHIFT_MASK, "activate-paste", 0);
+  }
+
+  constructor (self)
+  {
+    GtkMenuShell *shell;
+    GtkWidget *add_item;
+    GtkListStore *store;
+    GtkCellRenderer *renderer;
+    GtkTreeViewColumn *column;
+    GtkTreeSelection *selection;
+    int i;
+
+    gtk_tree_view_set_reorderable(GTK_TREE_VIEW(self), TRUE);
+    gtk_tree_view_set_search_equal_func(GTK_TREE_VIEW(self), self_search_equal_cb, NULL, NULL);
+
+    shell = GTK_MENU_SHELL(selfp->menu);
+
+    add_item = lm_menu_shell_append(shell, GTK_STOCK_ADD, NULL);
+    selfp->remove_item = lm_menu_shell_append(shell, GTK_STOCK_REMOVE, NULL);
+    lm_menu_shell_append(shell, NULL, NULL);
+    selfp->up_item = lm_menu_shell_append(shell, GTK_STOCK_GO_UP, _("Move _Up"));
+    selfp->down_item = lm_menu_shell_append(shell, GTK_STOCK_GO_DOWN, _("Move _Down"));
+    lm_menu_shell_append(shell, NULL, NULL);
+    selfp->cut_item = lm_menu_shell_append(shell, GTK_STOCK_CUT, NULL);
+    selfp->copy_item = lm_menu_shell_append(shell, GTK_STOCK_COPY, NULL);
+    selfp->paste_item = lm_menu_shell_append(shell, GTK_STOCK_PASTE, NULL);
+    lm_menu_shell_append(shell, NULL, NULL);
+    selfp->select_all_item = lm_menu_shell_append(shell, GTK_STOCK_SELECT_ALL, NULL);
+
+    g_signal_connect_swapped(add_item, "activate", G_CALLBACK(self_activate_add), self);
+    g_signal_connect_swapped(selfp->remove_item, "activate", G_CALLBACK(self_activate_remove), self);
+    g_signal_connect(selfp->up_item, "activate", G_CALLBACK(self_up_activate_h), self);
+    g_signal_connect(selfp->down_item, "activate", G_CALLBACK(self_down_activate_h), self);
+    g_signal_connect_swapped(selfp->cut_item, "activate", G_CALLBACK(self_activate_cut), self);
+    g_signal_connect_swapped(selfp->copy_item, "activate", G_CALLBACK(self_activate_copy), self);
+    g_signal_connect_swapped(selfp->paste_item, "activate", G_CALLBACK(self_activate_paste), self);
+    g_signal_connect(selfp->select_all_item, "activate", G_CALLBACK(self_select_all_activate_h), self);
+
+    store = gtk_list_store_new(N_COLUMNS,
+			       LM_TYPE_HOST_FRONTEND,
+			       GDK_TYPE_COLOR,
+			       G_TYPE_STRING);
+    gtk_tree_view_set_model(GTK_TREE_VIEW(self), GTK_TREE_MODEL(store));
+
+    renderer = lm_cell_renderer_color_new();
+    g_signal_connect(renderer, "activated", G_CALLBACK(self_color_activated_h), self);
+
+    column = gtk_tree_view_column_new_with_attributes(_("Color"),
+						      renderer,
+						      "color", COLUMN_COLOR,
+						      NULL);
+    gtk_tree_view_column_set_sizing(column, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(self), column);
+
+    renderer = gtk_cell_renderer_text_new();
+    g_object_set(G_OBJECT(renderer), "editable", TRUE, NULL);
+    g_object_connect(renderer,
+		     "signal::editing-started", self_editing_started_h, self,
+		     "signal::editing-canceled", self_editing_canceled_h, self,
+		     "signal::edited", self_edited_h, self,
+		     NULL);
+
+    column = gtk_tree_view_column_new_with_attributes(_("Host"),
+						      renderer,
+						      "text", COLUMN_NAME,
+						      NULL);
+    gtk_tree_view_column_set_sizing(column, GTK_TREE_VIEW_COLUMN_AUTOSIZE);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(self), column);
+
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(self));
+    gtk_tree_selection_set_mode(selection, GTK_SELECTION_MULTIPLE);
+    g_signal_connect(selection, "changed", G_CALLBACK(self_selection_changed_h), self);
+
+    /* fill */
+    LM_ARRAY_FOREACH(i, selfp->applet->hosts)
+      {
+	LMHostFrontend *host = g_ptr_array_index(selfp->applet->hosts, i);
+	GtkTreeIter iter;
+
+	gtk_list_store_insert_with_values(store, &iter,
+					  G_MAXINT,
+					  COLUMN_HOST, host,
+					  COLUMN_COLOR, &host->color,
+					  COLUMN_NAME, LM_HOST(host)->name,
+					  -1);
+      }
+
+    g_object_connect(store,
+		     /* for the sensitivity of "Select All" */
+		     "swapped-signal::row-inserted", self_update_sensitivity, self,
+		     "swapped-signal::row-deleted", self_update_sensitivity, self,
+		     /* handle row dnd */
+		     "swapped-signal::row-deleted", self_reorder, self,
+		     NULL);
+
+    g_object_unref(store);
+
+    g_object_connect(self,
+		     "signal::popup-menu", self_popup_menu_h, NULL,
+		     "signal::button-press-event", self_button_press_event_h, NULL,
+		     NULL);
+
+    self_update_sensitivity(self);
+  }
+
+  private GSList *
+    get_selected_rows (self)
+  {
+    GtkTreeModel *model;
+    GtkTreeSelection *selection;
+    GList *paths;
+    GList *l;
+    GSList *references = NULL;
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(self));
+    paths = gtk_tree_selection_get_selected_rows(selection, NULL);
+
+    LM_LIST_FOREACH(l, paths)
+      {
+	GtkTreePath *path = l->data;
+
+	references = g_slist_append(references, gtk_tree_row_reference_new(model, path));
+	gtk_tree_path_free(path);
+      }
+    g_list_free(paths);
+
+    return references;
+  }
+
+  private void
+    store_remove (self,
+		  Gtk:List:Store *store (check null type),
+		  GtkTreeIter *iter (check null))
+  {
+    /* block dnd handler */
+    g_signal_handlers_block_by_func(store, self_reorder, self);
+    gtk_list_store_remove(store, iter);
+    g_signal_handlers_unblock_by_func(store, self_reorder, self);
+  }
+
+  private void
+    reorder (self)
+  {
+    GtkTreeModel *model;
+    gboolean valid;
+    GtkTreeIter iter;
+    GSList *hosts = NULL;
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+    valid = gtk_tree_model_get_iter_first(model, &iter);
+
+    while (valid)
+      {
+	LMHostFrontend *host;
+
+	gtk_tree_model_get(model, &iter, COLUMN_HOST, &host, -1);
+	hosts = g_slist_append(hosts, host);
+
+	valid = gtk_tree_model_iter_next(model, &iter);
+      }
+
+    lm_applet_reorder_hosts(selfp->applet, hosts);
+    lm_g_object_slist_free(hosts);
+  }
+
+  signal (ACTION) public NONE (NONE)
+    void activate_add (self)
+  {
+    GtkTreeModel *model;
+    GtkTreePath *path;
+    GtkTreeViewColumn *column;
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+    gtk_list_store_append(GTK_LIST_STORE(model), &selfp->add_pending_iter);
+    selfp->add_pending_count++;
+
+    path = gtk_tree_model_get_path(model, &selfp->add_pending_iter);
+    column = gtk_tree_view_get_column(GTK_TREE_VIEW(self), 1);
+
+    gtk_widget_grab_focus(GTK_WIDGET(self));
+    gtk_tree_view_scroll_to_cell(GTK_TREE_VIEW(self), path, column, FALSE, 0, 0);
+    gtk_tree_view_set_cursor(GTK_TREE_VIEW(self), path, column, TRUE);
+    gtk_tree_path_free(path);
+  }
+
+  signal (ACTION) public NONE (INT)
+    void activate_move (self, int direction)
+  {
+    GtkTreeModel *model;
+    GSList *references;
+    GSList *l;
+
+    g_return_if_fail(direction == -1 || direction == +1);
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+    references = self_get_selected_rows(self);
+    if (direction == +1)
+      references = g_slist_reverse(references);
+
+    LM_LIST_FOREACH(l, references)
+      {
+	GtkTreeRowReference *reference = l->data;
+	GtkTreePath *path;
+	GtkTreeIter iter;
+	GtkTreeIter other_iter;
+	gboolean status;
+
+	path = gtk_tree_row_reference_get_path(reference);
+
+	status = gtk_tree_model_get_iter(model, &iter, path);
+	g_assert(status == TRUE);
+
+	if (direction == -1)
+	  gtk_tree_path_prev(path);
+	else
+	  gtk_tree_path_next(path);
+
+	if (gtk_tree_model_get_iter(model, &other_iter, path))
+	  {
+	    LMHostFrontend *host;
+	    LMHostFrontend *other_host;
+
+	    gtk_tree_model_get(model, &iter, COLUMN_HOST, &host, -1);
+	    gtk_tree_model_get(model, &other_iter, COLUMN_HOST, &other_host, -1);
+
+	    gtk_list_store_swap(GTK_LIST_STORE(model), &iter, &other_iter);
+
+	    g_object_unref(host);
+	    g_object_unref(other_host);
+	  }
+
+	gtk_tree_path_free(path);
+	gtk_tree_row_reference_free(reference);
+      }
+    g_slist_free(references);
+
+    self_reorder(self);
+    self_update_sensitivity(self); /* for up and down */
+  }
+
+  signal (ACTION) public NONE (NONE)
+    void activate_remove (self)
+  {
+    self_remove_selected_hosts(self);
+  }
+
+  private void
+    remove_selected_hosts (self)
+  {
+    GtkTreeModel *model;
+    GSList *references;
+    GSList *l;
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+    references = self_get_selected_rows(self);
+    LM_LIST_FOREACH(l, references)
+      {
+	GtkTreeRowReference *reference = l->data;
+	GtkTreeIter iter;
+	gboolean status;
+	LMHostFrontend *host;
+
+	/* if the color dialog is associated with the host, destroy it */
+	if (selfp->color_dialog_row_reference
+	    && ! lm_tree_row_reference_compare(reference,
+					       selfp->color_dialog_row_reference))
+	  gtk_widget_destroy(selfp->color_dialog);
+
+	status = lm_tree_row_reference_get_iter(reference, &iter);
+	g_assert(status == TRUE);
+
+	gtk_tree_model_get(model, &iter, COLUMN_HOST, &host, -1);
+
+	lm_applet_remove_host(selfp->applet, host);
+	self_store_remove(self, GTK_LIST_STORE(model), &iter);
+
+	g_object_unref(host);
+	gtk_tree_row_reference_free(reference);
+      }
+    g_slist_free(references);
+  }
+
+  private void
+    copy_selected_hosts (self)
+  {
+    GSList *host_configs = NULL;
+    GtkTreeModel *model;
+    GSList *references;
+    GSList *l;
+    gboolean status;
+    static const GtkTargetEntry init_target_table[] = {
+      { CLIPBOARD_TARGET_NATIVE_NAME, 0, CLIPBOARD_TARGET_NATIVE }
+    };
+    GtkTargetList *target_list;
+    GtkTargetEntry *target_table;
+    int target_table_len;
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+
+    references = self_get_selected_rows(self);
+    LM_LIST_FOREACH(l, references)
+      {
+	GtkTreeRowReference *reference = l->data;
+	GtkTreePath *path;
+	GtkTreeIter iter;
+	LMHostFrontend *host;
+
+	path = gtk_tree_row_reference_get_path(reference);
+	status = gtk_tree_model_get_iter(model, &iter, path);
+	g_assert(status == TRUE);
+	gtk_tree_path_free(path);
+
+	gtk_tree_model_get(model, &iter, COLUMN_HOST, &host, -1);
+	host_configs = g_slist_append(host_configs, lm_host_frontend_get_configuration(host));
+	g_object_unref(host);
+
+	gtk_tree_row_reference_free(reference);
+      }
+    g_slist_free(references);
+
+    target_list = gtk_target_list_new(init_target_table, G_N_ELEMENTS(init_target_table));
+    gtk_target_list_add_text_targets(target_list, CLIPBOARD_TARGET_TEXT);
+
+    target_table = gtk_target_table_new_from_list(target_list, &target_table_len);
+    gtk_target_list_unref(target_list);
+
+    status = gtk_clipboard_set_with_data(global_clipboard,
+					 target_table,
+					 target_table_len,
+					 self_get_clipboard_cb,
+					 self_clear_clipboard_cb,
+					 host_configs);
+    g_assert(status == TRUE);
+
+    gtk_target_table_free(target_table, target_table_len);
+  }
+
+  private void
+    get_clipboard_cb (GtkClipboard *clipboard,
+		      GtkSelectionData *selection_data,
+		      unsigned int info,
+		      gpointer user_data_or_owner)
+  {
+    GSList *host_configs = user_data_or_owner;
+    GSList *l;
+
+    switch ((ClipboardTarget) info)
+      {
+      case CLIPBOARD_TARGET_NATIVE:
+	gtk_selection_data_set(selection_data,
+			       clipboard_target_native_atom,
+			       8,
+			       (unsigned char *) &host_configs,
+			       sizeof(host_configs));
+	break;
+
+      case CLIPBOARD_TARGET_TEXT:
+	{
+	  GString *str;
+
+	  str = g_string_new(NULL);
+
+	  LM_LIST_FOREACH(l, host_configs)
+	    {
+	      LMHostFrontendConfiguration *config = l->data;
+
+	      g_string_append(str, config->name);
+
+	      if (l->next)
+		g_string_append_c(str, '\n');
+	    }
+
+	  gtk_selection_data_set_text(selection_data, str->str, str->len);
+	  g_string_free(str, TRUE);
+	}
+	break;
+
+      default:
+	g_assert_not_reached();
+	break;
+      }
+  }
+
+  private void
+    clear_clipboard_cb (GtkClipboard *clipboard, gpointer user_data_or_owner)
+  {
+    GSList *host_configs = user_data_or_owner;
+
+    lm_g_slist_free_deep_custom(host_configs, (GFunc) lm_host_frontend_configuration_free, NULL);
+  }
+
+  signal (ACTION) private NONE (NONE)
+    void activate_cut (self)
+  {
+    self_copy_selected_hosts(self);
+    self_remove_selected_hosts(self);
+  }
+
+  signal (ACTION) private NONE (NONE)
+    void activate_copy (self)
+  {
+    self_copy_selected_hosts(self);
+  }
+
+  signal (ACTION) private NONE (NONE)
+    void activate_paste (self)
+  {
+    GtkSelectionData *data;
+    char *text;
+
+    data = gtk_clipboard_wait_for_contents(global_clipboard, clipboard_target_native_atom);
+    if (data)
+      {
+	GSList *host_configs;
+	GSList *l;
+
+	memcpy(&host_configs, data->data, data->length);
+
+	LM_LIST_FOREACH(l, host_configs)
+	  {
+	    LMHostFrontendConfiguration *config = l->data;
+	    LMHostFrontend *host;
+
+	    host = lm_host_frontend_new_from_configuration(selfp->applet, config);
+	    self_add_host(self, host);
+	    g_object_unref(host);
+	  }
+
+	gtk_selection_data_free(data);
+	return;
+      }
+
+    text = gtk_clipboard_wait_for_text(global_clipboard);
+    if (text)
+      {
+	char **hosts;
+	int i;
+
+	hosts = g_strsplit(text, "\n", 0);
+	g_free(text);
+
+	for (i = 0; hosts[i]; i++)
+	  {
+	    LMHostFrontend *host;
+
+	    host = lm_host_frontend_new(selfp->applet, hosts[i], NULL);
+	    self_add_host(self, host);
+	    g_object_unref(host);
+	  }
+
+	g_strfreev(hosts);
+      }
+  }
+
+  private void
+    add_host (self, LM:Host:Frontend *host (check null type))
+  {
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+
+    lm_applet_add_host(selfp->applet, host);
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+
+    gtk_list_store_insert_with_values(GTK_LIST_STORE(model), &iter,
+				      G_MAXINT,
+				      COLUMN_HOST, host,
+				      COLUMN_COLOR, &host->color,
+				      COLUMN_NAME, LM_HOST(host)->name,
+				      -1);
+  }
+
+  private void
+    selection_changed_h (GtkTreeSelection *selection,
+			 gpointer user_data)
+  {
+    Self *self = user_data;
+
+    self_update_sensitivity(self);
+  }
+
+  private void
+    color_activated_h (LMCellRendererColor *renderer,
+		       const char *path,
+		       gpointer user_data)
+  {
+    Self *self = user_data;
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    gboolean status;
+    LMHostFrontend *host;
+    GtkWindow *parent_window;
+
+    if (! selfp->color_dialog)
+      {
+	selfp->color_dialog = gtk_color_selection_dialog_new(_("Pick a Color"));
+
+	g_object_weak_ref(G_OBJECT(selfp->color_dialog), self_color_dialog_weak_notify_cb, self);
+
+	g_signal_connect(selfp->color_dialog, "response", G_CALLBACK(self_color_dialog_response_h), self);
+      }
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+
+    status = gtk_tree_model_get_iter_from_string(model, &iter, path);
+    g_assert(status == TRUE);
+
+    gtk_tree_model_get(model, &iter, COLUMN_HOST, &host, -1);
+    gtk_color_selection_set_current_color(GTK_COLOR_SELECTION(GTK_COLOR_SELECTION_DIALOG(selfp->color_dialog)->colorsel), &host->color);
+    g_object_unref(host);
+
+    gtk_tree_row_reference_free(selfp->color_dialog_row_reference);
+    selfp->color_dialog_row_reference = lm_tree_row_reference_new_from_path_string(model, path);
+
+    parent_window = lm_widget_get_parent_window(GTK_WIDGET(self));
+    if (parent_window)
+      {
+	if (parent_window != gtk_window_get_transient_for(GTK_WINDOW(selfp->color_dialog)))
+	  gtk_window_set_transient_for(GTK_WINDOW(selfp->color_dialog), parent_window);
+
+	gtk_window_set_modal(GTK_WINDOW(selfp->color_dialog), gtk_window_get_modal(parent_window));
+      }
+
+    lm_window_present_from_event(GTK_WINDOW(selfp->color_dialog));
+  }
+
+  private void
+    color_dialog_response_h (GtkDialog *dialog,
+			     int response,
+			     gpointer user_data)
+  {
+    Self *self = user_data;
+
+    if (response == GTK_RESPONSE_OK)
+      {
+	GdkColor color;
+	GtkTreeModel *model;
+	GtkTreeIter iter;
+	gboolean status;
+	LMHostFrontend *host;
+
+	gtk_color_selection_get_current_color(GTK_COLOR_SELECTION(GTK_COLOR_SELECTION_DIALOG(dialog)->colorsel), &color);
+
+	model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+
+	status = lm_tree_row_reference_get_iter(selfp->color_dialog_row_reference, &iter);
+	g_assert(status == TRUE);
+
+	gtk_tree_model_get(model, &iter, COLUMN_HOST, &host, -1);
+	lm_host_frontend_set_color(host, &color);
+	g_object_unref(host);
+
+	gtk_list_store_set(GTK_LIST_STORE(model), &iter,
+			   COLUMN_COLOR, &color,
+			   -1);
+      }
+
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+  }
+
+  private void
+    color_dialog_weak_notify_cb (gpointer data, GObject *former_dialog)
+  {
+    Self *self = data;
+
+    selfp->color_dialog = NULL;
+
+    gtk_tree_row_reference_free(selfp->color_dialog_row_reference);
+    selfp->color_dialog_row_reference = NULL;
+  }
+
+  private void
+    editing_started_h (GtkCellRenderer *renderer,
+		       GtkCellEditable *editable,
+		       char *path,
+		       gpointer user_data)
+  {
+    Self *self = user_data;
+
+    self_set_editing_host(self, TRUE);
+  }
+
+  private void
+    editing_canceled_h (GtkCellRenderer *renderer,
+			gpointer user_data)
+  {
+    Self *self = user_data;
+
+    self_set_editing_host(self, FALSE);
+
+    if (selfp->add_pending_count)
+      {
+	GtkTreeModel *model;
+
+	selfp->add_pending_count--;
+	model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+	self_store_remove(self, GTK_LIST_STORE(model), &selfp->add_pending_iter);
+      }
+  }
+
+  private void
+    edited_h (GtkCellRendererText *renderer,
+	      const char *path_string,
+	      const char *new_text,
+	      gpointer user_data)
+  {
+    Self *self = user_data;
+    GtkTreeModel *model;
+    gboolean status;
+    GtkTreeIter iter;
+    LMHostFrontend *old_host;
+    LMHostFrontend *new_host;
+
+    self_set_editing_host(self, FALSE);
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+    status = gtk_tree_model_get_iter_from_string(model, &iter, path_string);
+    g_assert(status == TRUE);
+
+    gtk_tree_model_get(model, &iter, COLUMN_HOST, &old_host, -1);
+
+    if (old_host)
+      {
+	new_host = lm_host_frontend_new(selfp->applet, new_text, &old_host->color);
+	lm_applet_replace_host(selfp->applet, old_host, new_host);
+	g_object_unref(old_host);
+      }
+    else
+      {
+	new_host = lm_host_frontend_new(selfp->applet, new_text, NULL);
+	lm_applet_add_host(selfp->applet, new_host);
+      }
+
+    gtk_list_store_set(GTK_LIST_STORE(model), &iter,
+		       COLUMN_HOST, new_host,
+		       COLUMN_COLOR, &new_host->color,
+		       COLUMN_NAME, LM_HOST(new_host)->name,
+		       -1);
+
+    g_object_unref(new_host);
+
+    if (selfp->add_pending_count)
+      selfp->add_pending_count--;
+  }
+
+  private void
+    update_sensitivity (self)
+  {
+    GtkTreeModel *model;
+    GtkTreeSelection *selection;
+    GList *paths;
+    gboolean has_selection = FALSE;
+    gboolean has_prev = FALSE;
+    gboolean has_next = FALSE;
+    GtkTreeIter iter;
+    gboolean has_hosts;
+
+    model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(self));
+    paths = gtk_tree_selection_get_selected_rows(selection, NULL);
+
+    if (paths)
+      {
+	GList *l;
+	gboolean status;
+
+	has_selection = TRUE;
+
+	/* has prev? */
+
+	l = paths;
+	if (gtk_tree_path_prev(l->data))
+	  {
+	    gtk_tree_path_next(l->data); /* restore it */
+	    has_prev = TRUE;
+	  }
+
+	/* has next? */
+
+	l = g_list_last(paths);
+	status = gtk_tree_model_get_iter(model, &iter, l->data);
+	g_assert(status == TRUE);
+	if (gtk_tree_model_iter_next(model, &iter))
+	  has_next = TRUE;
+
+	/* cleanup */
+
+	LM_LIST_FOREACH(l, paths)
+	  gtk_tree_path_free(l->data);
+	g_list_free(paths);
+      }
+
+    self_set_can_go_up(self, has_prev);
+    self_set_can_go_down(self, has_next);
+
+    gtk_widget_set_sensitive(selfp->remove_item, has_selection);
+    gtk_widget_set_sensitive(selfp->cut_item, has_selection);
+    gtk_widget_set_sensitive(selfp->copy_item, has_selection);
+    gtk_widget_set_sensitive(selfp->up_item, has_prev);
+    gtk_widget_set_sensitive(selfp->down_item, has_next);
+
+    has_hosts = gtk_tree_model_get_iter_first(model, &iter);
+    gtk_widget_set_sensitive(selfp->select_all_item, has_hosts);
+  }
+
+  private void
+    popup_menu (self, int button, guint32 activate_time)
+  {
+    Self **self_box;
+
+    gtk_widget_set_sensitive(selfp->paste_item, FALSE);
+
+    /* do not crash if self is finalized before the request completes */
+    self_box = g_new(Self *, 1);
+    *self_box = self;
+    lm_add_weak_pointer(self_box);
+
+    gtk_clipboard_request_targets(global_clipboard, self_popup_menu_targets_received_cb, self_box);
+
+    gtk_menu_popup(GTK_MENU(selfp->menu), NULL, NULL, NULL, NULL, button, activate_time);
+  }
+
+  private void
+    popup_menu_targets_received_cb (GtkClipboard *clipboard,
+				    GdkAtom *atoms,
+				    int n_atoms,
+				    gpointer data)
+  {
+    Self **self_box = data;
+    Self *self = *self_box;
+
+    if (self)
+      {
+	if (atoms)
+	  gtk_widget_set_sensitive(selfp->paste_item, self_can_paste(atoms, n_atoms));
+
+	lm_remove_weak_pointer(self_box);
+      }
+
+    g_free(self_box);
+  }
+
+  private gboolean
+    can_paste (GdkAtom *atoms, int n_atoms)
+  {
+    int i;
+
+    for (i = 0; i < n_atoms; i++)
+      if (atoms[i] == CLIPBOARD_TARGET_NATIVE)
+	return TRUE;
+
+    return gtk_targets_include_text(atoms, n_atoms);
+  }
+
+  private gboolean
+    popup_menu_h (GtkWidget *widget, gpointer user_data)
+  {
+    Self *self = SELF(widget);
+
+    self_popup_menu(self, 0, gtk_get_current_event_time());
+    gtk_menu_shell_select_first(GTK_MENU_SHELL(selfp->menu), FALSE);
+
+    return TRUE;		/* a menu was activated */
+  }
+
+  private gboolean
+    button_press_event_h (GtkWidget *widget,
+			  GdkEventButton *event,
+			  gpointer user_data)
+  {
+    if (event->button == 3)
+      self_popup_menu(SELF(widget), event->button, event->time);
+
+    return FALSE;		/* propagate event */
+  }
+
+  private void
+    select_all_activate_h (GtkMenuItem *item, gpointer user_data)
+  {
+    Self *self = user_data;
+    GtkTreeSelection *selection;
+
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(self));
+    gtk_tree_selection_select_all(selection);
+  }
+
+  private void
+    up_activate_h (GtkMenuItem *item, gpointer user_data)
+  {
+    Self *self = user_data;
+    self_activate_move(self, -1);
+  }
+
+  private void
+    down_activate_h (GtkMenuItem *item, gpointer user_data)
+  {
+    Self *self = user_data;
+    self_activate_move(self, +1);
+  }
+
+  private gboolean
+    search_equal_cb (GtkTreeModel *model,
+		     int column,
+		     const char *key,
+		     GtkTreeIter *iter,
+		     gpointer search_data)
+  {
+    gboolean status = TRUE;
+    GValue value = { 0, };
+    GValue transformed = { 0, };
+    const char *str;
+    char *normalized_string;
+    char *normalized_key;
+
+    /*
+     * The stock gtk_tree_view_search_equal_func() only searches the
+     * start of the string, using strncmp(). We use strstr(), to
+     * search anywhere inside the string.
+     */
+
+    gtk_tree_model_get_value(model, iter, column, &value);
+
+    g_value_init(&transformed, G_TYPE_STRING);
+
+    if (! g_value_transform(&value, &transformed))
+      {
+	g_value_unset(&value);
+	return TRUE;
+      }
+
+    g_value_unset(&value);
+
+    str = g_value_get_string(&transformed);
+    if (! str)
+      {
+	g_value_unset(&transformed);
+	return TRUE;
+      }
+
+    normalized_string = g_utf8_normalize(str, -1, G_NORMALIZE_ALL);
+    normalized_key = g_utf8_normalize(key, -1, G_NORMALIZE_ALL);
+
+    if (normalized_string && normalized_key)
+      {
+	char *case_normalized_string;
+	char *case_normalized_key;
+
+	case_normalized_string = g_utf8_casefold(normalized_string, -1);
+	case_normalized_key = g_utf8_casefold(normalized_key, -1);
+
+	if (strstr(case_normalized_string, case_normalized_key))
+	  status = FALSE;
+
+	g_free(case_normalized_string);
+	g_free(case_normalized_key);
+      }
+
+    g_value_unset (&transformed);
+    g_free(normalized_key);
+    g_free(normalized_string);
+
+    return status;
+  }
+
+  public GtkWidget *
+    new (LM:Applet *applet (check null type))
+  {
+    return GTK_WIDGET(GET_NEW_VARG(LM_HOST_VIEW_PROP_APPLET(applet), NULL));
+  }
+}

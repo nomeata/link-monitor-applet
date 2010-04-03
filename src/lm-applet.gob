@@ -1,0 +1,707 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gnome.h>
+#include <panel-applet.h>
+#include "lm-host.h"
+%}
+
+%privateheader{
+#include <gtk/gtk.h>
+%}
+
+%{
+#include <string.h>
+#include <glib/gi18n.h>
+#include <panel-applet-gconf.h>
+#include "lm-util.h"
+#include "lm-preferences-dialog.h"
+#include "lm-about-dialog.h"
+#include "lm-icmp.h"
+#include "lm-host-frontend.h"
+#include "lm-bar-graph.h"
+#include "lm-line-graph.h"
+#include "lm-line-graph-icon.h"
+#include "lm-color-generator.h"
+
+#define ICON_PADDING			1
+
+#define BAR_SPACING			3
+
+#define NUM_HOST_COLORS			500
+
+#define CONF_HOSTS			"hosts"
+#define CONF_DELAY			"delay"
+#define CONF_SCALE			"scale"
+#define CONF_TOOLTIP_GRAPH_SPAN		"tooltip_graph_span"
+#define CONF_PREFERENCES_WIDTH		"preferences_width"
+#define CONF_PREFERENCES_HEIGHT		"preferences_height"
+
+/* keep in sync with link-monitor-applet.schemas */
+
+#define DEFAULT_DELAY			1000
+#define DEFAULT_SCALE			500
+#define DEFAULT_TOOLTIP_GRAPH_SPAN	60
+#define DEFAULT_PREFERENCES_WIDTH	-1
+#define DEFAULT_PREFERENCES_HEIGHT	400
+
+/* keep in sync with preferences.glade and LMPreferencesDialog */
+
+#define MIN_DELAY			200
+#define MIN_SCALE			1
+#define MIN_TOOLTIP_GRAPH_SPAN		10
+%}
+
+class LM:Applet from Panel:Applet
+{
+  /* allow O(1) reverse iteration (used by LMLineGraph) */
+  public GPtrArray *hosts = { g_ptr_array_new() };
+
+  public int delay;		/* milliseconds */
+  property INT delay (minimum = MIN_DELAY, default_value = DEFAULT_DELAY, export)
+    set
+    {
+      panel_applet_gconf_set_int(PANEL_APPLET(self), CONF_DELAY, self->delay = g_value_get_int(VAL), NULL);
+    }
+    get
+    {
+      g_value_set_int(VAL, self->delay);
+    };
+
+  public int scale;		/* milliseconds */
+  property INT scale (minimum = MIN_SCALE, default_value = DEFAULT_SCALE, export)
+    set
+    {
+      panel_applet_gconf_set_int(PANEL_APPLET(self), CONF_SCALE, self->scale = g_value_get_int(VAL), NULL);
+    }
+    get
+    {
+      g_value_set_int(VAL, self->scale);
+    };
+
+  public int tooltip_graph_span; /* seconds */
+  property INT tooltip_graph_span (minimum = MIN_TOOLTIP_GRAPH_SPAN, default_value = DEFAULT_TOOLTIP_GRAPH_SPAN, export)
+    set
+    {
+      panel_applet_gconf_set_int(PANEL_APPLET(self), CONF_TOOLTIP_GRAPH_SPAN, self->tooltip_graph_span = g_value_get_int(VAL), NULL);
+    }
+    get
+    {
+      g_value_set_int(VAL, self->tooltip_graph_span);
+    };
+
+  public int preferences_width;
+  property INT preferences_width (minimum = -1, default_value = DEFAULT_PREFERENCES_WIDTH, export)
+    set
+    {
+      panel_applet_gconf_set_int(PANEL_APPLET(self), CONF_PREFERENCES_WIDTH, self->preferences_width = g_value_get_int(VAL), NULL);
+    }
+    get
+    {
+      g_value_set_int(VAL, self->preferences_width);
+    };
+
+  public int preferences_height;
+  property INT preferences_height (minimum = -1, default_value = DEFAULT_PREFERENCES_HEIGHT, export)
+    set
+    {
+      panel_applet_gconf_set_int(PANEL_APPLET(self), CONF_PREFERENCES_HEIGHT, self->preferences_height = g_value_get_int(VAL), NULL);
+    }
+    get
+    {
+      g_value_set_int(VAL, self->preferences_height);
+    };
+
+  private GArray *host_colors
+    destroy
+    {
+      if (VAR)
+	g_array_free(VAR, TRUE);
+    };
+
+  private GtkSizeGroup *tooltip_flag_size_group;
+
+  private GtkWidget *preferences_dialog;
+  private GtkWidget *about_dialog;
+
+  private unsigned int reconfigure_timeout_id;
+
+  signal (ACTION) private NONE (NONE)
+    void activate (self)
+  {
+    self_show_preferences_dialog(self, gtk_get_current_event_time());
+  }
+
+  signal (ACTION) private NONE (NONE)
+    void activate_preferences (self)
+  {
+    self_show_preferences_dialog(self, gtk_get_current_event_time());
+  }
+
+  class_init (class)
+  {
+    GtkBindingSet *binding_set;
+
+    binding_set = gtk_binding_set_by_class(class);
+
+    gtk_binding_entry_add_signal(binding_set, GDK_Return, 0, "activate", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_ISO_Enter, 0, "activate", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KP_Enter, 0, "activate", 0);
+
+    gtk_binding_entry_add_signal(binding_set, GDK_Return, GDK_MOD1_MASK, "activate-preferences", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_ISO_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KP_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
+  }
+
+  private gboolean
+    factory_cb (PanelApplet *applet, const char *iid, gpointer data)
+  {
+    Self *self = SELF(applet);
+    static const BonoboUIVerb menu_verbs[] = {
+      BONOBO_UI_VERB("LinkMonitorPreferences", self_preferences_cb),
+      BONOBO_UI_VERB("LinkMonitorHelp", self_help_cb),
+      BONOBO_UI_VERB("LinkMonitorAbout", self_about_cb),
+      BONOBO_UI_VERB_END
+    };
+    GSList *gconf_hosts;
+    GSList *l;
+    int num_hosts = 0;
+
+    if (strcmp(iid, "OAFIID:GNOME_LinkMonitorApplet"))
+      return FALSE;
+
+    GDK_THREADS_ENTER();
+
+    lm_shell->applets = g_slist_append(lm_shell->applets, self);
+
+    panel_applet_set_flags(applet, PANEL_APPLET_EXPAND_MINOR);
+    panel_applet_add_preferences(applet, "/schemas/apps/link-monitor-applet/prefs", NULL);
+    panel_applet_setup_menu_from_file(applet, DATADIR, "GNOME_LinkMonitorApplet.xml", NULL, menu_verbs, applet);
+
+    self->delay = panel_applet_gconf_get_int(applet, CONF_DELAY, NULL);
+    if (self->delay < MIN_DELAY)
+      self->delay = DEFAULT_DELAY;
+
+    self->scale = panel_applet_gconf_get_int(applet, CONF_SCALE, NULL);
+    if (self->scale < MIN_SCALE)
+      self->scale = DEFAULT_SCALE;
+
+    self->tooltip_graph_span = panel_applet_gconf_get_int(applet, CONF_TOOLTIP_GRAPH_SPAN, NULL);
+    if (self->tooltip_graph_span < MIN_TOOLTIP_GRAPH_SPAN)
+      self->tooltip_graph_span = DEFAULT_TOOLTIP_GRAPH_SPAN;
+
+    self->preferences_width = panel_applet_gconf_get_int(applet, CONF_PREFERENCES_WIDTH, NULL);
+    if (! self->preferences_width)
+      self->preferences_width = DEFAULT_PREFERENCES_WIDTH;
+
+    self->preferences_height = panel_applet_gconf_get_int(applet, CONF_PREFERENCES_HEIGHT, NULL);
+    if (! self->preferences_height)
+      self->preferences_height = DEFAULT_PREFERENCES_HEIGHT;
+
+    selfp->tooltip_flag_size_group = gtk_size_group_new(GTK_SIZE_GROUP_HORIZONTAL);
+
+    gconf_hosts = panel_applet_gconf_get_list(applet, CONF_HOSTS, GCONF_VALUE_STRING, NULL);
+    LM_LIST_FOREACH(l, gconf_hosts)
+      {
+	const char *entry = l->data;
+	LMHostFrontend *host;
+
+	if (++num_hosts > LM_MAX_HOSTS)
+	  {
+	    /* unlikely, not worth a translation */
+	    g_warning("too many hosts configured, excess hosts ignored");
+	    break;
+	  }
+
+	host = lm_host_frontend_parse_gconf_entry(self, entry);
+	if (host)
+	  {
+	    self_add_host_internal(self, host);
+	    g_object_unref(host);
+	  }
+	else
+	  g_warning("cannot parse GConf host entry \"%s\"", entry);
+      }
+    lm_g_slist_free_deep(gconf_hosts);
+
+    self_update(self);
+
+    g_object_connect(self,
+		     "signal::destroy", self_destroy_h, NULL,
+		     "signal::button-press-event", self_button_press_event_h, NULL,
+		     "signal::change-orient", self_reconfigure, NULL,
+		     "signal::change-size", self_reconfigure, NULL,
+		     "signal::change-background", self_change_background_h, NULL,
+		     "signal::style-set", self_style_set_h, NULL,
+		     NULL);
+
+    gtk_widget_show(GTK_WIDGET(self));
+
+    GDK_THREADS_LEAVE();
+
+    return TRUE;
+  }
+
+  /*
+   * Cleanup and destroy ourselves as soon as we receive the destroy
+   * signal, otherwise we might crash on exit (apparently because we
+   * update the progress bars after the panel has been unrealized).
+   */
+  private void
+    destroy_h (GtkObject *object, gpointer user_data)
+  {
+    Self *self = SELF(object);
+
+    lm_shell->applets = g_slist_remove(lm_shell->applets, self);
+
+    if (selfp->reconfigure_timeout_id)
+      g_source_remove(selfp->reconfigure_timeout_id);
+
+    lm_g_object_array_free(self->hosts);
+
+    g_object_unref(selfp->tooltip_flag_size_group);
+
+    if (selfp->preferences_dialog)
+      gtk_widget_destroy(selfp->preferences_dialog);
+    if (selfp->about_dialog)
+      gtk_widget_destroy(selfp->about_dialog);
+
+    gtk_widget_destroy(GTK_WIDGET(object));
+  }
+
+  private void
+    reconfigure (self)
+  {
+    if (selfp->reconfigure_timeout_id)
+      /* cancel the previously queued reconfigure */
+      g_source_remove(selfp->reconfigure_timeout_id);
+
+    /* do not flood the panel with reconfigures, queue it */
+    selfp->reconfigure_timeout_id = gdk_threads_add_timeout(10, self_reconfigure_timeout_cb, self);
+  }
+
+  private gboolean
+    reconfigure_timeout_cb (gpointer data)
+  {
+    Self *self = data;
+
+    self_update_applet(self);
+
+    return FALSE;		/* remove source */
+  }
+
+  /* taken from the GNOME mixer applet */
+  private void
+    change_background_h (PanelApplet *applet,
+			 PanelAppletBackgroundType type,
+			 GdkColor *color,
+			 GdkPixmap *pixmap,
+			 gpointer user_data)
+  {
+    GtkRcStyle *rc_style;
+
+    /* reset style */
+    gtk_widget_set_style(GTK_WIDGET(applet), NULL);
+    rc_style = gtk_rc_style_new();
+    gtk_widget_modify_style(GTK_WIDGET(applet), rc_style);
+    g_object_unref(rc_style);
+
+    switch (type)
+      {
+      case PANEL_NO_BACKGROUND:
+	break;
+
+      case PANEL_COLOR_BACKGROUND:
+	gtk_widget_modify_bg(GTK_WIDGET(applet), GTK_STATE_NORMAL, color);
+	break;
+
+      case PANEL_PIXMAP_BACKGROUND:
+	{
+	  GtkStyle *style;
+
+	  style = gtk_style_copy(GTK_WIDGET(applet)->style);
+	  if (style->bg_pixmap[GTK_STATE_NORMAL])
+	    g_object_unref(style->bg_pixmap[GTK_STATE_NORMAL]);
+	  style->bg_pixmap[GTK_STATE_NORMAL] = g_object_ref(pixmap);
+	  gtk_widget_set_style(GTK_WIDGET(applet), style);
+	  g_object_unref(style);
+	}
+	break;
+      }
+  }
+
+  private void
+    style_set_h (GtkWidget *widget,
+		 GtkStyle *previous_style,
+		 gpointer user_data)
+  {
+    Self *self = SELF(widget);
+
+    /* invalidate the colors since they refer to style->base */
+    if (selfp->host_colors)
+      {
+	g_array_free(selfp->host_colors, TRUE);
+	selfp->host_colors = NULL;
+      }
+  }
+
+  private gboolean
+    button_press_event_h (GtkWidget *widget,
+			  GdkEventButton *event,
+			  gpointer user_data)
+  {
+    if (event->button == 1)
+      {
+	self_activate(SELF(widget));
+	return TRUE;		/* do not propagate event */
+      }
+
+    return FALSE;		/* propagate event */
+  }
+
+  private void
+    preferences_cb (BonoboUIComponent *component,
+		    gpointer user_data,
+		    const char *cname)
+  {
+    Self *self = user_data;
+
+    self_activate_preferences(self);
+  }
+
+  private void
+    help_cb (BonoboUIComponent *component,
+	     gpointer user_data,
+	     const char *cname)
+  {
+    lm_show_help(NULL);
+  }
+
+  private void
+    about_cb (BonoboUIComponent *component,
+	      gpointer user_data,
+	      const char *cname)
+  {
+    Self *self = user_data;
+
+    self_show_window(self, LM_TYPE_ABOUT_DIALOG, &selfp->about_dialog, gtk_get_current_event_time());
+  }
+
+  private void
+    show_preferences_dialog (self, guint32 timestamp)
+  {
+    self_show_window(self, LM_TYPE_PREFERENCES_DIALOG, &selfp->preferences_dialog, timestamp);
+  }
+
+  private void
+    show_window (self,
+		 GType type (check != 0),
+		 GtkWidget **ptr (check null),
+		 guint32 timestamp)
+  {
+    GObjectClass *class;
+
+    if (*ptr)
+      {
+	if (timestamp)
+	  gtk_window_present_with_time(GTK_WINDOW(*ptr), timestamp);
+	else
+	  gtk_window_present(GTK_WINDOW(*ptr));
+	return;
+      }
+
+    class = g_type_class_ref(type);
+    if (g_object_class_find_property(class, "applet"))
+      *ptr = g_object_new(type, "applet", self, NULL);
+    else
+      *ptr = g_object_new(type, NULL);
+    g_type_class_unref(class);
+
+    lm_add_weak_pointer(ptr);
+    gtk_widget_show(*ptr);
+  }
+
+  private void
+    update (self)
+  {
+    self_update_applet(self);
+    self_update_tooltip(self);
+  }
+
+  private GtkWidget *
+    create_icon (self)
+  {
+    GdkPixbuf *pixbuf;
+    int size;
+    GdkPixbuf *scaled;
+    GtkWidget *icon;
+
+    pixbuf = lm_pixbuf_new(GNOMEPIXMAPSDIR G_DIR_SEPARATOR_S "link-monitor-applet.png");
+
+    size = panel_applet_get_size(PANEL_APPLET(self)) - (ICON_PADDING * 2);
+    scaled = gdk_pixbuf_scale_simple(pixbuf, size, size, GDK_INTERP_BILINEAR);
+    g_object_unref(pixbuf);
+
+    icon = gtk_image_new_from_pixbuf(scaled);
+    g_object_unref(scaled);
+
+    return icon;
+  }
+
+  private void
+    update_applet (self)
+  {
+    GtkWidget *bar_graph = NULL;
+    GtkWidget *box;
+    GtkWidget *icon;
+    GtkWidget *old_box;
+
+    if (self->hosts->len != 0)
+      bar_graph = lm_bar_graph_new(self);
+
+    switch (panel_applet_get_orient(PANEL_APPLET(self)))
+      {
+      case PANEL_APPLET_ORIENT_UP:
+      case PANEL_APPLET_ORIENT_DOWN:
+	box = gtk_hbox_new(FALSE, BAR_SPACING);
+	if (bar_graph)
+	  lm_bar_graph_set_orientation(LM_BAR_GRAPH(bar_graph), LM_BAR_GRAPH_ORIENTATION_VERTICAL);
+	break;
+
+      case PANEL_APPLET_ORIENT_LEFT:
+      case PANEL_APPLET_ORIENT_RIGHT:
+	box = gtk_vbox_new(FALSE, BAR_SPACING);
+	if (bar_graph)
+	  lm_bar_graph_set_orientation(LM_BAR_GRAPH(bar_graph), LM_BAR_GRAPH_ORIENTATION_HORIZONTAL);
+	break;
+
+      default:
+	g_assert_not_reached();
+	break;
+      }
+
+    icon = self_create_icon(self);
+    gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
+    gtk_widget_show(icon);
+
+    if (bar_graph)
+      {
+	gtk_box_pack_start(GTK_BOX(box), bar_graph, FALSE, FALSE, 0);
+	gtk_widget_show(bar_graph);
+      }
+
+    old_box = gtk_bin_get_child(GTK_BIN(self));
+    if (old_box)
+      gtk_container_remove(GTK_CONTAINER(self), old_box);
+
+    gtk_container_add(GTK_CONTAINER(self), box);
+    gtk_widget_show(box);
+  }
+
+  private void
+    update_tooltip (self)
+  {
+    if (self->hosts->len != 0)
+      {
+	GtkWidget *vbox;
+	GtkWidget *hosts_vbox;
+	GtkWidget *line_graph;
+	int i;
+
+	vbox = gtk_vbox_new(FALSE, 12);
+	hosts_vbox = gtk_vbox_new(TRUE, 6);
+	line_graph = lm_line_graph_new(self);
+
+	LM_ARRAY_FOREACH(i, self->hosts)
+	  {
+	    LMHostFrontend *host = g_ptr_array_index(self->hosts, i);
+	    GtkWidget *hbox;
+	    GtkWidget *graph_icon;
+
+	    hbox = gtk_hbox_new(FALSE, 6);
+
+	    if (self->hosts->len != 1)
+	      {
+		graph_icon = lm_line_graph_icon_new(host);
+		gtk_box_pack_start(GTK_BOX(hbox), graph_icon, FALSE, FALSE, 0);
+		gtk_widget_show(graph_icon);
+	      }
+
+	    lm_widget_remove_from_container(host->tooltip_flag);
+	    gtk_box_pack_start(GTK_BOX(hbox), host->tooltip_flag, FALSE, FALSE, 0);
+	    gtk_widget_show(host->tooltip_flag);
+
+	    lm_widget_remove_from_container(host->tooltip_status);
+	    gtk_box_pack_start(GTK_BOX(hbox), host->tooltip_status, FALSE, FALSE, 0);
+	    gtk_widget_show(host->tooltip_status);
+
+	    gtk_box_pack_start(GTK_BOX(hosts_vbox), hbox, FALSE, FALSE, 0);
+	    gtk_widget_show(hbox);
+	  }
+
+	gtk_box_pack_start(GTK_BOX(vbox), line_graph, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), hosts_vbox, FALSE, FALSE, 0);
+
+	gtk_widget_show(line_graph);
+	gtk_widget_show(hosts_vbox);
+
+	lm_tooltips_set_tip_widget(lm_shell->tooltips, GTK_WIDGET(self), vbox);
+	gtk_widget_show(vbox);
+      }
+    else
+      lm_tooltips_set_tip(lm_shell->tooltips, GTK_WIDGET(self), _("No host is being monitored."));
+  }
+
+  public int
+    factory_main (void)
+  {
+    return panel_applet_factory_main("OAFIID:GNOME_LinkMonitorApplet_Factory",
+				     TYPE_SELF,
+				     self_factory_cb,
+				     NULL);
+  }
+
+  private void
+    save_hosts (self)
+  {
+    int i;
+    GSList *gconf_hosts = NULL;
+
+    LM_ARRAY_FOREACH(i, self->hosts)
+      {
+	LMHostFrontend *host = g_ptr_array_index(self->hosts, i);
+	gconf_hosts = g_slist_append(gconf_hosts, lm_host_frontend_build_gconf_entry(host));
+      }
+
+    panel_applet_gconf_set_list(PANEL_APPLET(self),
+				CONF_HOSTS,
+				GCONF_VALUE_STRING,
+				gconf_hosts,
+				NULL);
+
+    lm_g_slist_free_deep(gconf_hosts);
+  }
+
+  private void
+    add_host_internal (self, LM:Host:Frontend *host (check null type))
+  {
+    g_ptr_array_add(self->hosts, g_object_ref(host));
+
+    lm_g_object_connect(self, host,
+			"swapped-signal::notify::color", self_save_hosts, self,
+			NULL);
+
+    gtk_size_group_add_widget(selfp->tooltip_flag_size_group, host->tooltip_flag);
+
+    self_update(self);
+  }
+
+  private void
+    replace_host_internal (self,
+			   LM:Host:Frontend *old (check null type),
+			   LM:Host:Frontend *new (check null type))
+  {
+    int idx;
+
+    idx = lm_g_ptr_array_find(self->hosts, old);
+    g_assert(idx != -1);
+
+    g_object_unref(old);
+    g_ptr_array_index(self->hosts, idx) = g_object_ref(new);
+
+    self_update(self);
+  }
+
+  private void
+    reorder_hosts_internal (self, GSList *new_hosts)
+  {
+    GSList *l;
+
+    lm_g_object_array_free(self->hosts);
+    self->hosts = g_ptr_array_new();
+
+    LM_LIST_FOREACH(l, new_hosts)
+      {
+	LMHostFrontend *host = l->data;
+	g_ptr_array_add(self->hosts, g_object_ref(host));
+      }
+
+    self_update(self);
+  }
+
+  private void
+    remove_host_internal (self, LM:Host:Frontend *host (check null type))
+  {
+    gboolean status;
+
+    status = g_ptr_array_remove(self->hosts, host);
+    g_assert(status == TRUE);
+
+    g_object_unref(host);
+
+    self_update(self);
+  }
+
+  public void
+    add_host (self, LM:Host:Frontend *host (check null type))
+  {
+    self_add_host_internal(self, host);
+    self_save_hosts(self);
+  }
+
+  public void
+    replace_host (self,
+		  LM:Host:Frontend *old (check null type),
+		  LM:Host:Frontend *new (check null type))
+  {
+    self_replace_host_internal(self, old, new);
+    self_save_hosts(self);
+  }
+
+  public void
+    reorder_hosts (self, GSList *new_hosts)
+  {
+    self_reorder_hosts_internal(self, new_hosts);
+    self_save_hosts(self);
+  }
+
+  public void
+    remove_host (self, LM:Host:Frontend *host (check null type))
+  {
+    self_remove_host_internal(self, host);
+    self_save_hosts(self);
+  }
+
+  public void
+    get_host_color (self,
+		    const char *name (check null),
+		    GdkColor *color (check null))
+  {
+    GtkWidget *widget = GTK_WIDGET(self);
+
+    if (! selfp->host_colors)
+      {
+	gtk_widget_ensure_style(widget);
+	selfp->host_colors = lm_color_generator_generate(NUM_HOST_COLORS, &widget->style->base[GTK_STATE_NORMAL]);
+      }
+
+    *color = g_array_index(selfp->host_colors, GdkColor, g_str_hash(name) % selfp->host_colors->len);
+  }
+}

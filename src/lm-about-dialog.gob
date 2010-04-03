@@ -1,0 +1,83 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gtk/gtk.h>
+%}
+
+%{
+#include <glib/gi18n.h>
+#include <gnome.h>
+#include "lm-util.h"
+%}
+
+class LM:About:Dialog from Gtk:About:Dialog
+{
+  class_init (class)
+  {
+    gtk_about_dialog_set_email_hook(self_activate_link_cb, "mailto:", NULL);
+    gtk_about_dialog_set_url_hook(self_activate_link_cb, NULL, NULL);
+  }
+
+  init (self)
+  {
+    GtkAboutDialog *about = GTK_ABOUT_DIALOG(self);
+    const char *authors[] = { "Jean-Yves Lefort <jylefort@brutele.be>", NULL };
+    const char *documenters[] = { "Jean-Yves Lefort <jylefort@brutele.be>", NULL };
+    GdkPixbuf *logo;
+
+    /* translators: header capitalization */
+    gtk_about_dialog_set_program_name(about, _("Link Monitor"));
+    gtk_about_dialog_set_version(about, VERSION);
+    gtk_about_dialog_set_copyright(about, "Copyright \302\251 2004-2008 Jean-Yves Lefort");
+    gtk_about_dialog_set_comments(about, _("The link monitor displays the round-trip time to one or more hosts."));
+    gtk_about_dialog_set_website(about, "http://www.nongnu.org/link-monitor");
+    gtk_about_dialog_set_authors(about, authors);
+    gtk_about_dialog_set_documenters(about, documenters);
+    /*
+     * translators: Your Name <your-email>
+     * optionally followed by one or more: \nOther Contributor's Name <his-email>
+     */
+    gtk_about_dialog_set_translator_credits(about, _("translator-credits"));
+
+    logo = lm_pixbuf_new(GNOMEPIXMAPSDIR G_DIR_SEPARATOR_S "link-monitor-applet.png");
+    gtk_about_dialog_set_logo(about, logo);
+    g_object_unref(logo);
+
+    g_signal_connect(self, "response", G_CALLBACK(gtk_widget_destroy), NULL);
+  }
+
+  private void
+    activate_link_cb (GtkAboutDialog *about,
+		      const char *link_,
+		      gpointer data)
+  {
+    GError *err = NULL;
+    const char *prefix = data;
+    char *url;
+
+    url = prefix ? g_strconcat(prefix, link_, NULL) : g_strdup(link_);
+    if (! gnome_url_show(url, &err))
+      {
+        lm_show_error_dialog(GTK_WINDOW(about), _("Unable to open link"), "%s", err->message);
+	g_error_free(err);
+      }
+    g_free(url);
+  }
+}

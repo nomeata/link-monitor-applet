@@ -1,0 +1,203 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <stdint.h>
+#include "lm-tooltips.h"
+#include "lm-decls.h"
+%}
+
+%h{
+#define LM_MAX_HOSTS		256 /* host ID is an uint8_t */
+
+typedef struct
+{
+  int		domain;		/* AF_INET, ... */
+  int		desc;		/* descriptor, undefined if init_error is set */
+  char		*init_error;	/* error message or NULL if no error */
+} LMSocket;
+%}
+
+%{
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <glib/gi18n.h>
+#include "lm-applet.h"
+#include "lm-host.h"
+#include "lm-util.h"
+
+typedef struct
+{
+  LMShell		*self;
+  const LMSocket	*sock;
+} WatchInfo;
+
+LMShell *lm_shell = NULL;
+%}
+
+class LM:Shell
+{
+  public uint16_t icmp_ident;
+
+  private GSList *sockets;
+  property POINTER sockets (link, flags = CONSTRUCT_ONLY);
+
+  public GSList *applets;
+  public LMTooltips *tooltips;
+
+  private LMHost *hosts[LM_MAX_HOSTS];
+
+  property INT host_count (export)
+    get
+    {
+      int count = 0;
+      int i;
+
+      for (i = 0; i < G_N_ELEMENTS(selfp->hosts); i++)
+	if (selfp->hosts[i])
+	  count++;
+
+      g_value_set_int(VAL, count);
+    };
+
+  constructor (self)
+  {
+    GSList *l;
+
+    g_assert(lm_shell == NULL);
+
+    lm_shell = self;
+    lm_add_weak_pointer(&lm_shell);
+
+    /* unique identifier for our ICMP packets */
+    self->icmp_ident = getpid() & 0xffff;
+
+    LM_LIST_FOREACH(l, selfp->sockets)
+      self_init_socket(self, l->data);
+
+    self->tooltips = lm_tooltips_new();
+  }
+
+  private void
+    init_socket (self, LMSocket *sock (check null))
+  {
+    if (! sock->init_error)
+      {
+	int flags;
+
+	flags = fcntl(sock->desc, F_GETFL, 0);
+	if (fcntl(sock->desc, F_SETFL, flags | O_NONBLOCK) < 0)
+	  sock->init_error = g_strdup_printf(_("unable to set O_NONBLOCK flag: %s"), g_strerror(errno));
+	else
+	  {
+	    GIOChannel *channel;
+	    WatchInfo *info;
+
+	    info = g_new0(WatchInfo, 1);
+	    info->self = self;
+	    info->sock = sock;
+
+	    channel = g_io_channel_unix_new(sock->desc);
+	    g_io_add_watch_full(channel, G_PRIORITY_HIGH, G_IO_IN, self_socket_watch_cb, info, NULL);
+	  }
+      }
+  }
+
+  private gboolean
+    socket_watch_cb (GIOChannel *source, GIOCondition condition, gpointer data)
+  {
+    WatchInfo *info = data;
+    Self *self = info->self;
+    LMICMPReply reply;
+
+    if (lm_icmp_reply_get(info->sock, &reply))
+      {
+	LMHost *host;
+
+	host = self_get_host(self, reply.host_id);
+	if (host)
+	  {
+	    GDK_THREADS_ENTER();
+	    lm_host_reply_received(host, &reply);
+	    GDK_THREADS_LEAVE();
+	  }
+      }
+
+    return TRUE;		/* keep source */
+  }
+
+  private LMHost *
+    get_host (self, int host_id (check >= 0 < LM_MAX_HOSTS))
+  {
+    return selfp->hosts[host_id];
+  }
+
+  public int
+    allocate_host_id (self, LM:Host *host (check null type))
+  {
+    int host_id;
+
+    for (host_id = 0; host_id < G_N_ELEMENTS(selfp->hosts); host_id++)
+      if (! selfp->hosts[host_id])
+	{
+	  selfp->hosts[host_id] = host;
+	  g_object_notify(G_OBJECT(self), "host-count");
+	  return host_id;
+	}
+
+    g_assert_not_reached();
+    return -1;
+  }
+
+  public void
+    deallocate_host_id (self, int host_id)
+  {
+    g_return_if_fail(selfp->hosts[host_id] != NULL);
+
+    selfp->hosts[host_id] = NULL;
+    g_object_notify(G_OBJECT(self), "host-count");
+  }
+
+  public const LMSocket *
+    get_socket (self, int domain)
+  {
+    GSList *l;
+
+    LM_LIST_FOREACH(l, selfp->sockets)
+      {
+	const LMSocket *sock = l->data;
+
+	if (sock->domain == domain)
+	  return sock;
+      }
+
+    return NULL;
+  }
+
+  public LMShell *
+    new (GSList *sockets)
+  {
+    return GET_NEW_VARG(LM_SHELL_PROP_SOCKETS(sockets), NULL);
+  }
+}
+
+%h{
+extern LMShell *lm_shell;
+%}

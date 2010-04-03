@@ -1,0 +1,696 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gtk/gtk.h>
+#include "lm-data-set.h"
+#include "lm-util.h"
+%}
+
+%h{
+/*
+ * Make sure that the resulting area width is divisible by the x
+ * subdivisions, and that the resulting area height is divisible by
+ * the y subdivisions.
+ */
+#define LM_LINE_GRAPH_WIDTH		494
+#define LM_LINE_GRAPH_HEIGHT		202
+
+#define LM_LINE_GRAPH_AREA_WIDTH	(LM_LINE_GRAPH_WIDTH - LM_BOX_BORDER_WIDTH * 2)
+#define LM_LINE_GRAPH_AREA_HEIGHT	(LM_LINE_GRAPH_HEIGHT - LM_BOX_BORDER_WIDTH * 2)
+%}
+
+%privateheader{
+/*
+ * Have integral subdivisions (100 ms vertical and 10 seconds
+ * horizontal) at the default scale and span.
+ */
+
+#define X_MAJOR_SUBDIVISIONS		6
+#define X_MINOR_SUBDIVISIONS		12
+#define X_LABELS			(X_MAJOR_SUBDIVISIONS + 1)
+
+#define Y_MAJOR_SUBDIVISIONS		5
+#define Y_MINOR_SUBDIVISIONS		10
+#define Y_LABELS			(Y_MAJOR_SUBDIVISIONS + 1)
+
+typedef struct
+{
+  PangoLayout	*layout;
+  int		x;
+  int		y;
+} LabelInfo;
+%}
+
+%{
+#include <time.h>
+#include <glib/gi18n.h>
+#include "lm-util.h"
+#include "lm-applet.h"
+#include "lm-host-frontend.h"
+
+#define LINE_WIDTH			1.0
+
+#define XALIGN				0.5
+#define YALIGN				0.5
+
+/* spacing between graph and labels */
+#define GRAPH_MARGIN			3
+%}
+
+class LM:Line:Graph from Gtk:Widget
+{
+  private LMApplet *applet;
+  property POINTER applet (link, flags = CONSTRUCT_ONLY);
+
+  private unsigned int update_timeout_id;
+  private unsigned int update_time_timeout_id;
+  private unsigned int update_not_done_timeout_id;
+
+  private LabelInfo x_labels[X_LABELS];
+  private LabelInfo y_labels[Y_LABELS];
+
+  /* total widget size */
+  private int width;
+  private int height;
+
+  /* relative offset of graph within widget */
+  private int graph_x;
+  private int graph_y;
+
+  private GdkGC *subdivision_gc unrefwith g_object_unref;
+
+  class_init (class)
+  {
+    GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(class);
+
+    gtk_widget_class_install_style_property(widget_class,
+					    g_param_spec_boxed("minor-subdivision-color",
+							       NULL,
+							       NULL,
+							       GDK_TYPE_COLOR,
+							       G_PARAM_READABLE));
+    gtk_widget_class_install_style_property(widget_class,
+					    g_param_spec_boxed("major-subdivision-color",
+							       NULL,
+							       NULL,
+							       GDK_TYPE_COLOR,
+							       G_PARAM_READABLE));
+  }
+
+  constructor (self)
+  {
+    int i;
+
+    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+
+    g_object_connect(self,
+		     "signal::style-set", self_clear_labels_and_queue_resize, self,
+		     "signal::direction-changed", self_clear_labels_and_queue_resize, self,
+		     NULL);
+
+    lm_g_object_connect(self, selfp->applet,
+			"swapped-signal::notify::scale", self_clear_labels_and_queue_resize, self,
+			"swapped-signal::notify::tooltip-graph-span", self_tooltip_graph_span_changed, self,
+			NULL);
+
+    LM_ARRAY_FOREACH(i, selfp->applet->hosts)
+      {
+	LMHostFrontend *host = g_ptr_array_index(selfp->applet->hosts, i);
+
+	lm_g_object_connect(self, host,
+			    "swapped-signal::notify::color", gtk_widget_queue_draw, self,
+			    NULL);
+      }
+  }
+
+  dispose (self)
+  {
+    lm_source_clear(&selfp->update_timeout_id);
+    lm_source_clear(&selfp->update_time_timeout_id);
+    lm_source_clear(&selfp->update_not_done_timeout_id);
+
+    self_clear_labels(self);
+  }
+
+  private void
+    tooltip_graph_span_changed (self)
+  {
+    /*
+     * We must clear the update timeout since a new one is needed
+     * (expose_event() will install it).
+     */
+    lm_source_clear(&selfp->update_timeout_id);
+
+    self_clear_labels_and_queue_resize(self);
+  }
+
+  override (Gtk:Widget) void
+    size_request (GtkWidget *widget, GtkRequisition *requisition)
+  {
+    Self *self = SELF(widget);
+
+    self_ensure_labels(self);
+
+    requisition->width = selfp->width;
+    requisition->height = selfp->height;
+  }
+
+  private void
+    clear_labels (self)
+  {
+    if (! selfp->x_labels[0].layout)
+      return;
+
+    self_clear_labels_real(self, selfp->x_labels, X_LABELS);
+    self_clear_labels_real(self, selfp->y_labels, Y_LABELS);
+  }
+
+  private void
+    clear_labels_real (self, LabelInfo *infos, int num_infos)
+  {
+    int i;
+
+    for (i = 0; i < num_infos; i++)
+      {
+	LabelInfo *info = &infos[i];
+
+	g_object_unref(info->layout);
+	info->layout = NULL;
+      }
+  }
+
+  private void
+    clear_labels_and_queue_resize (self)
+  {
+    self_clear_labels(self);
+    gtk_widget_queue_resize(GTK_WIDGET(self));
+  }
+
+  private void
+    ensure_labels (self)
+  {
+    int i;
+    GTimeVal now;
+    double step;
+    const char *time_format;
+    int step_usec;
+    int y_precision;
+    int x_label_width = 0;
+    int x_label_height = 0;
+    int y_label_width = 0;
+    int y_label_height = 0;
+    PangoRectangle rect;
+    int x_left_margin;
+    int y_left_margin;
+    double step_pixels;
+
+    if (selfp->x_labels[0].layout)
+      return;
+
+    /* create horizontal labels */
+
+    g_get_current_time(&now);
+
+    step = (double) selfp->applet->tooltip_graph_span / X_MAJOR_SUBDIVISIONS;
+
+    if (selfp->applet->tooltip_graph_span < 3600)
+      time_format = "%T";
+    else if (selfp->applet->tooltip_graph_span < 86400)
+      time_format = "%R";
+    else
+      time_format = "%a %R";
+
+    for (i = 0; i < X_LABELS; i++)
+      {
+	LabelInfo *info = &selfp->x_labels[i];
+	time_t label_time;
+	struct tm *tm;
+	char *str;
+
+	label_time = now.tv_sec - step * (X_MAJOR_SUBDIVISIONS - i);
+	tm = localtime(&label_time);
+
+	str = lm_strftime(time_format, tm);
+	info->layout = self_create_pango_layout(self, str, &x_label_width, &x_label_height);
+	g_free(str);
+      }
+
+    /* create vertical labels */
+
+    step = (double) selfp->applet->scale / Y_MAJOR_SUBDIVISIONS;
+
+    /* display a suitable number of decimals */
+    step_usec = selfp->applet->scale * 1000 / Y_MAJOR_SUBDIVISIONS;
+    if (step_usec % 1000 == 0)
+      y_precision = 0;
+    else if (step_usec % 100 == 0)
+      y_precision = 1;
+    else
+      y_precision = 2;
+
+    for (i = 0; i < Y_LABELS; i++)
+      {
+	LabelInfo *info = &selfp->y_labels[i];
+	char *str;
+
+	str = g_strdup_printf(_("%.*f ms"), y_precision, step * (Y_MAJOR_SUBDIVISIONS - i));
+	info->layout = self_create_pango_layout(self, str, &y_label_width, &y_label_height);
+	g_free(str);
+      }
+
+    /* compute margins, graph size and position */
+
+    pango_layout_get_pixel_extents(selfp->x_labels[0].layout, NULL, &rect);
+
+    x_left_margin = rect.width / 2;
+    y_left_margin = y_label_width + GRAPH_MARGIN;
+
+    selfp->graph_x = MAX(x_left_margin, y_left_margin);
+    selfp->graph_y = y_label_height / 2;
+
+    pango_layout_get_pixel_extents(selfp->x_labels[X_LABELS - 1].layout, NULL, &rect);
+
+    selfp->width = selfp->graph_x + LM_LINE_GRAPH_WIDTH + rect.width / 2;
+    selfp->height = selfp->graph_y + LM_LINE_GRAPH_HEIGHT + GRAPH_MARGIN + x_label_height;
+
+    /* compute horizontal labels positions */
+
+    step_pixels = LM_LINE_GRAPH_WIDTH / X_MAJOR_SUBDIVISIONS;
+
+    for (i = 0; i < X_LABELS; i++)
+      {
+	LabelInfo *info = &selfp->x_labels[i];
+
+	pango_layout_get_pixel_extents(info->layout, NULL, &rect);
+
+	info->x = selfp->graph_x + step_pixels * i - rect.width / 2;
+	info->y = selfp->graph_y + LM_LINE_GRAPH_HEIGHT + GRAPH_MARGIN + y_label_height - rect.height;
+      }
+
+    /* compute vertical labels positions */
+
+    step_pixels = LM_LINE_GRAPH_HEIGHT / Y_MAJOR_SUBDIVISIONS;
+
+    for (i = 0; i < Y_LABELS; i++)
+      {
+	LabelInfo *info = &selfp->y_labels[i];
+
+	pango_layout_get_pixel_extents(info->layout, NULL, &rect);
+
+	info->x = selfp->graph_x - GRAPH_MARGIN - rect.width;
+	info->y = selfp->graph_y + step_pixels * i - rect.height / 2;
+      }
+
+    /* update the time labels when the second will change */
+
+    if (selfp->update_time_timeout_id)
+      g_source_remove(selfp->update_time_timeout_id);
+
+    selfp->update_time_timeout_id = gdk_threads_add_timeout((1000 - now.tv_usec / 1000) + 1, self_update_time_cb, self);
+  }
+
+  private PangoLayout *
+    create_pango_layout (self,
+			 const char *text (check null),
+			 int *max_width (check null),
+			 int *max_height (check null))
+  {
+    PangoLayout *layout;
+    char *markup;
+    PangoRectangle rect;
+
+    layout = gtk_widget_create_pango_layout(GTK_WIDGET(self), NULL);
+
+    markup = g_strdup_printf("<span size=\"smaller\">%s</span>", text);
+    pango_layout_set_markup(layout, markup, -1);
+    g_free(markup);
+
+    pango_layout_get_pixel_extents(layout, NULL, &rect);
+
+    if (rect.width > *max_width)
+      *max_width = rect.width;
+    if (rect.height > *max_height)
+      *max_height = rect.height;
+
+    return layout;
+  }
+
+  override (Gtk:Widget) gboolean
+    expose_event (GtkWidget *widget, GdkEventExpose *event)
+  {
+    Self *self = SELF(widget);
+    int x;
+    int y;
+    int graph_x;
+    int graph_y;
+    int graph_area_x;
+    int graph_area_y;
+
+    if (! GTK_WIDGET_DRAWABLE(widget))
+      return FALSE;
+
+    lm_source_clear(&selfp->update_not_done_timeout_id);
+
+    self_ensure_labels(self);
+
+    lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
+
+    self_draw_labels(self, event, x, y);
+
+    graph_x = x + selfp->graph_x;
+    graph_y = y + selfp->graph_y;
+
+    lm_paint_box(widget->window,
+		 GTK_WIDGET_STATE(widget),
+		 GTK_SHADOW_IN,
+		 &event->area,
+		 widget,
+		 widget->style->base_gc[GTK_WIDGET_STATE(widget)],
+		 graph_x,
+		 graph_y,
+		 LM_LINE_GRAPH_WIDTH,
+		 LM_LINE_GRAPH_HEIGHT);
+
+    graph_area_x = graph_x + LM_BOX_BORDER_WIDTH;
+    graph_area_y = graph_y + LM_BOX_BORDER_WIDTH;
+
+    self_draw_subdivisions(self, graph_area_x, graph_area_y);
+
+    if (selfp->applet->hosts->len != 0)
+      {
+	cairo_t *cr;
+	LMTimeSpan now;
+	LMTimeSpan scale;
+	LMTimeSpan span;
+	int i;
+
+	cr = gdk_cairo_create(widget->window);
+
+	/*
+	 * Setup a Cairo clip rectangle of size width,height at
+	 * (1,1). We need this rectangle because the line that
+	 * connects the first data point (which lies outside of the
+	 * graph) and the second (which lies inside) crosses the graph
+	 * edge.
+	 *
+	 * Another purpose is to make sure that Cairo will not draw on
+	 * the widget border (because of line width).
+	 */
+	cairo_rectangle(cr, graph_area_x, graph_area_y, LM_LINE_GRAPH_AREA_WIDTH, LM_LINE_GRAPH_AREA_HEIGHT);
+	cairo_clip(cr);
+
+	/*
+	 * Add an offset so that 0,0 is located at the upper-left
+	 * corner of our clip rectangle, not at the upper-left corner
+	 * of the GdkWindow.
+	 */
+	cairo_translate(cr, graph_area_x, graph_area_y);
+
+	cairo_set_line_width(cr, LINE_WIDTH);
+	cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
+	cairo_set_line_join(cr, CAIRO_LINE_JOIN_MITER);
+
+	now = lm_get_ticks();
+	scale = (LMTimeSpan) selfp->applet->scale * 1000;
+	span = (LMTimeSpan) selfp->applet->tooltip_graph_span * 1000000;
+
+	/* iterate in reverse order, to plot hosts listed first above */
+	LM_ARRAY_REVERSE_FOREACH(i, selfp->applet->hosts)
+	  {
+	    LMHostFrontend *host = g_ptr_array_index(selfp->applet->hosts, i);
+
+	    self_plot_host(self, host, cr, now, scale, span);
+	  }
+
+	cairo_destroy(cr);
+
+	if (! selfp->update_timeout_id)
+	  {
+	    int timeout;
+
+	    /*
+	     * Compute the update interval required for scrolling
+	     * pixel by pixel. Note that if we updated more often than
+	     * that, lines would wobble, since rasterisation could
+	     * cause the number of horizontal pixels between two data
+	     * points to vary from one frame to the next.
+	     */
+	    timeout = selfp->applet->tooltip_graph_span * 1000 / LM_LINE_GRAPH_AREA_WIDTH;
+
+	    selfp->update_timeout_id = gdk_threads_add_timeout(timeout, self_update_cb, self);
+	  }
+      }
+    else
+      lm_source_clear(&selfp->update_timeout_id);
+
+    return FALSE;
+  }
+
+  private void
+    draw_labels (self, GdkEventExpose *event, int x, int y)
+  {
+    self_draw_labels_real(self, selfp->x_labels, X_LABELS, event, x, y);
+    self_draw_labels_real(self, selfp->y_labels, Y_LABELS, event, x, y);
+  }
+
+  private void
+    draw_labels_real (self,
+		      const LabelInfo *infos,
+		      int num_infos,
+		      GdkEventExpose *event (check null),
+		      int x,
+		      int y)
+  {
+    GtkWidget *widget = GTK_WIDGET(self);
+    int i;
+
+    for (i = 0; i < num_infos; i++)
+      {
+	const LabelInfo *info = &infos[i];
+
+	gtk_paint_layout(widget->style,
+			 widget->window,
+			 GTK_WIDGET_STATE(widget),
+			 FALSE,
+			 &event->area,
+			 widget,
+			 NULL,
+			 x + info->x,
+			 y + info->y,
+			 info->layout);
+      }
+  }
+
+  private void
+    draw_subdivisions (self, int graph_area_x, int graph_area_y)
+  {
+    GtkWidget *widget = GTK_WIDGET(self);
+    GdkColor minor_color = { 0, 0xe000, 0xe000, 0xe000 };
+    GdkColor major_color = { 0, 0xff00, 0xcc00, 0xcc00 };
+    GdkColor *custom_minor_color;
+    GdkColor *custom_major_color;
+    int minor_subdivision;
+    int major_subdivision;
+    int line_end;
+    int graph_end;
+    int line;
+
+    if (! selfp->subdivision_gc)
+      selfp->subdivision_gc = gdk_gc_new(widget->window);
+
+    gtk_widget_style_get(widget,
+			 "minor-subdivision-color", &custom_minor_color,
+			 "major-subdivision-color", &custom_major_color,
+			 NULL);
+
+    if (custom_minor_color)
+      {
+	minor_color = *custom_minor_color;
+	gdk_color_free(custom_minor_color);
+      }
+    if (custom_major_color)
+      {
+	major_color = *custom_major_color;
+	gdk_color_free(custom_major_color);
+      }
+
+    /* horizontal */
+
+    minor_subdivision = LM_LINE_GRAPH_AREA_WIDTH / X_MINOR_SUBDIVISIONS;
+    major_subdivision = LM_LINE_GRAPH_AREA_WIDTH / X_MAJOR_SUBDIVISIONS;
+
+    line_end = graph_area_y + LM_LINE_GRAPH_AREA_HEIGHT - 1;
+    graph_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH;
+
+    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &minor_color);
+
+    for (line = minor_subdivision; line < LM_LINE_GRAPH_AREA_WIDTH; line += minor_subdivision)
+      if (line % major_subdivision != 0)
+	{
+	  int x = graph_area_x + line;
+	  gdk_draw_line(widget->window, selfp->subdivision_gc, x, graph_area_y, x, line_end);
+	}
+
+    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &major_color);
+
+    for (line = graph_area_x + major_subdivision; line < graph_end; line += major_subdivision)
+      gdk_draw_line(widget->window, selfp->subdivision_gc, line, graph_area_y, line, line_end);
+
+    /* vertical */
+
+    minor_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MINOR_SUBDIVISIONS;
+    major_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MAJOR_SUBDIVISIONS;
+
+    line_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH - 1;
+    graph_end = graph_area_y + LM_LINE_GRAPH_AREA_HEIGHT;
+
+    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &minor_color);
+
+    for (line = minor_subdivision; line < LM_LINE_GRAPH_AREA_HEIGHT; line += minor_subdivision)
+      if (line % major_subdivision != 0)
+	{
+	  int y = graph_area_y + line;
+	  gdk_draw_line(widget->window, selfp->subdivision_gc, graph_area_x, y, line_end, y);
+	}
+
+    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &major_color);
+
+    for (line = graph_area_y + major_subdivision; line < graph_end; line += major_subdivision)
+      gdk_draw_line(widget->window, selfp->subdivision_gc, graph_area_x, line, line_end, line);
+  }
+
+  private void
+    plot_host (self,
+	       LM:Host:Frontend *host (check null type),
+	       cairo_t *cr (check null),
+	       LMTimeSpan now,
+	       LMTimeSpan scale,
+	       LMTimeSpan span)
+  {
+    GArray *display_data;
+    gboolean line_ended = TRUE;
+    int i;
+
+    cairo_new_path(cr);
+    gdk_cairo_set_source_color(cr, &host->color);
+
+    display_data = lm_data_set_get_display_data(host->data_set, now);
+
+    for (i = 0; i < display_data->len; i++)
+      {
+	const LMDataPoint *dp = &g_array_index(display_data, LMDataPoint, i);
+	LMTimeSpan age;
+	double x;
+	double y;
+
+	if (dp->roundtrip_time < 0)
+	  {
+	    if (! line_ended)
+	      {
+		line_ended = TRUE;
+		cairo_stroke(cr);
+	      }
+	    continue;
+	  }
+
+	age = now - dp->timestamp;
+
+	x = (double) (span - age) / span * LM_LINE_GRAPH_AREA_WIDTH;
+	y = (double) LM_LINE_GRAPH_AREA_HEIGHT - ((double) dp->roundtrip_time / scale * LM_LINE_GRAPH_AREA_HEIGHT);
+
+	/*
+	 * Constrain high pings inside the graph, since no plot means
+	 * no reply. Note that we use 1 and not 0 because of the line
+	 * width: if we used 0, the point would be centered on the
+	 * edge of the clip rectangle, and half of it would be
+	 * invisible.
+	 */
+	if (y < 1)
+	  y = 1;
+
+	if (line_ended)
+	  {
+	    cairo_move_to(cr, x, y);
+	    line_ended = FALSE;
+	  }
+	else
+	  cairo_line_to(cr, x, y);
+      }
+
+    if (! line_ended)
+      cairo_stroke(cr);
+  }
+
+  private gboolean
+    update_cb (gpointer data)
+  {
+    Self *self = data;
+
+    gtk_widget_queue_draw(GTK_WIDGET(self));
+
+    /*
+     * If the update did not occur in a couple of seconds, it normally
+     * means that the graph is no longer visible (for instance because
+     * its parent tooltip was hidden). We can then save some
+     * resources.
+     */
+    if (! selfp->update_not_done_timeout_id)
+      selfp->update_not_done_timeout_id = g_timeout_add_seconds(10, self_update_not_done_cb, self);
+
+    return TRUE;		/* continue */
+  }
+
+  private gboolean
+    update_time_cb (gpointer data)
+  {
+    Self *self = data;
+
+    self_clear_labels_and_queue_resize(self);
+
+    selfp->update_time_timeout_id = 0;
+    return FALSE;		/* remove */
+  }
+
+  private gboolean
+    update_not_done_cb (gpointer data)
+  {
+    Self *self = data;
+    int i;
+
+    lm_source_clear(&selfp->update_timeout_id);
+    lm_source_clear(&selfp->update_time_timeout_id);
+
+    LM_ARRAY_FOREACH(i, selfp->applet->hosts)
+      {
+	LMHostFrontend *host = g_ptr_array_index(selfp->applet->hosts, i);
+
+	lm_data_set_clear_display_data(host->data_set);
+      }
+
+    selfp->update_not_done_timeout_id = 0;
+    return FALSE;
+  }
+
+  public GtkWidget *
+    new (LM:Applet *applet (check null type))
+  {
+    return GTK_WIDGET(GET_NEW_VARG(LM_LINE_GRAPH_PROP_APPLET(applet), NULL));
+  }
+}

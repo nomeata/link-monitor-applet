@@ -1,0 +1,111 @@
+3.0					February 20, 2008
+
+	* The tooltip graphs have been merged into a single larger
+	  graph. This new graph features many improvements, such as
+	  the elimination of the staircase effect that was visible
+	  with large echo delays, a configurable span, a better
+	  appearance, and more.
+	* The appearance of the applet bar graph has been improved
+	* Host colors are now configurable
+	* Time settings are now entered using sliders; these sliders
+	  are non-linear and allow to easily choose an appropriate
+	  value without having to use the keyboard
+	* The reply timeout setting has been removed; the timeout is
+	  now automatically computed from the maximum round-trip time
+	* The minimum delay between echo requests has been lowered to
+	  200 ms
+	* ICMP/ICMPv6 error messages (destination unreachable, etc)
+	  are now handled properly and displayed in the tooltip
+	* ICMP/ICMPv6 packet sizes have been reduced to the smallest
+	  possible value (no payload); they are 12 bytes smaller than
+	  in the previous version
+	* Incoming ICMP packets having an invalid checksum are now
+	  ignored
+	* A crash that occurred when the Ubuntu Human GTK+ theme was
+	  in use has been worked around (thanks to Tomáš Hnyk for his
+	  help); I believe that this crash was caused by a bug in the
+	  Human theme engine
+	* libeel is no longer used since its API is not stable
+	* The build system has been changed from the GNU Autotools to
+	  JB (the Jean-Yves Lefort's Build System)
+	* The documentation is now licensed under the terms of the GNU
+	  Free Documentation License version 1.2
+	* Updated translation: French
+	* New translation: Italian (Gabriele Vivinetto)
+
+2.2					September 2, 2007
+
+	* The applet icon is now displayed permanently
+	* Could no longer close the about dialog with recent GTK+
+	  versions: fixed
+	* Using the host list buttons while editing a host caused a
+	  crash: fixed
+	* Some build warnings have been fixed
+	* The src/automake.xml file is now distributed
+	* Link Monitor Applet is now licensed under the terms of the
+	  GNU General Public License version 3
+	* The documentation is now licensed under the terms of the GNU
+	  Free Documentation License
+	* Updated translation: French
+	* New translation: Bulgarian (Yavor Doganov)
+
+2.1					June 22, 2006
+
+	* ICMP replies were discarded if the ICMP sequence number
+	  wrapped while the monitored host was down: fixed
+	* Some build failures have been fixed
+
+2.0					June 20, 2006
+
+	* The applet tooltip has been improved: it now displays the
+	  geographical location of hosts (country flag and name) as
+	  well as round-trip time graphs
+	* The panel background transparency/color is now respected
+	* The applet is now activated with a single click; this is
+	  consistent with HIG recommendations as well as other applets
+	* Multiple applets can now be used
+	* A crash which sometimes occurred on logout has been fixed
+	* If the system resolver is not reentrant,
+	  getaddrinfo()/getnameinfo() calls are now serialized
+	* The ICMP/ICMPv6 payload size has been reduced in some cases
+	* Some potential network byte order issues have been fixed
+	* Replies received out of order are now handled properly
+	* Link Monitor Applet is now licensed under the terms of the
+	  GNU General Public License (previously, a BSD-style license
+	  was used)
+	* Updated translation: French
+
+1.3					February 1, 2005
+
+	* IP addresses are now resolved periodically
+	* The host list can now be reordered using drag and drop
+	* Now compiles cleanly even when -fstrict-aliasing is in use
+	* The applet icon has been modified
+	* Some cleanups have been performed
+
+1.2					October 9, 2004
+
+	* Binaries compiled with GCC 3.4.x were crashing in various
+	  places: fixed
+	* The manual is now installed in the proper location
+	* Some cleanups have been performed
+	* A few minor issues have been fixed
+
+1.1					August 22, 2004
+
+	* The preferences menu item was broken and has been fixed
+	* The host list now has keyboard shortcuts
+	* A few items have been added to the host list popup menu
+	* Objects are now generated with GOB
+	* A few minor issues have been fixed
+
+1.0					August 15, 2004
+
+	* A bug which caused the applet to hang on Linux (and on other
+	  platforms having non-recursive mutexes) has been fixed
+	* HIG compliance has been upgraded to version 2.0
+	* Alt+Return now invokes the preferences
+
+0.99					July 27, 2004
+
+	* Initial release

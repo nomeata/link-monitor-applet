@@ -1,0 +1,396 @@
+<?xml version="1.0"?>
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" 
+"http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" [
+  <!ENTITY applet "<application>Link Monitor</application>">
+  <!ENTITY appletversion "3.0">
+  <!ENTITY manrevision "2.8">
+  <!ENTITY date "Wednesday, February 20, 2008">
+
+  <!ENTITY project "The Link Monitor Project">
+
+  <!ENTITY documentation-license SYSTEM "documentation-license.xml">
+  <!ENTITY software-license SYSTEM "software-license.xml">
+
+  <!ENTITY icmp "<link linkend=&#34;icmp&#34;>ICMP</link>">
+  <!ENTITY icmpv6 "<link linkend=&#34;icmpv6&#34;>ICMPv6</link>">
+]>
+
+<!-- $Id: link-monitor-applet.xml,v 1.23 2008-02-20 17:35:58 jylefort Exp $ -->
+<!-- Link Monitor Applet Manual -->
+
+<!-- Copyright (C) 2004-2008 Jean-Yves Lefort -->
+<!-- All rights reserved. -->
+
+<!-- See documentation-license.xml for licensing information. -->
+
+<!-- This document does its best to adhere to the -->
+<!-- GNOME Documentation Style Guide V1.3 -->
+<!-- (http://developer.gnome.org/documents/style-guide) -->
+
+<article id="index" lang="en">
+<!-- please do not change the id; for translations, change lang to -->
+<!-- appropriate code -->
+  <articleinfo>
+    <title>&applet; Applet Manual V&manrevision;</title>
+
+    <copyright>
+      <year>2004</year>
+      <year>2005</year>
+      <year>2006</year>
+      <year>2007</year>
+      <year>2008</year>
+      <holder>Jean-Yves Lefort</holder>
+    </copyright>
+<!-- translators: uncomment this:
+
+  <copyright>
+   <year>2002</year>
+   <holder>ME-THE-TRANSLATOR (Latin translation)</holder>
+  </copyright>
+
+   -->
+    <publisher>
+      <publishername>&project;</publishername>
+    </publisher>
+
+    &documentation-license;
+
+    <authorgroup>
+      <author>
+	<firstname>Jean-Yves</firstname>
+	<surname>Lefort</surname>
+	<affiliation>
+	  <orgname>&project;</orgname>
+	  <address><email>jylefort@brutele.be</email></address>
+	</affiliation>
+      </author>
+      
+<!-- This is appropriate place for other contributors: translators,
+     maintainers,  etc. Commented out by default.
+     
+      <othercredit role="translator">
+		<firstname>Latin</firstname> 
+		<surname>Translator 1</surname> 
+		<affiliation> 
+	  		<orgname>Latin Translation Team</orgname> 
+	  		<address> <email>translator@gnome.org</email> </address> 
+		</affiliation>
+		<contrib>Latin translation</contrib>
+      </othercredit>
+-->
+    </authorgroup>
+
+<!-- The revision numbering system for GNOME manuals is as follows: -->
+<!-- * the revision number consists of two components -->
+<!-- * the first component of the revision number reflects the release version of the GNOME desktop. -->
+<!-- * the second component of the revision number is a decimal unit that is incremented with each revision of the manual. -->
+<!-- For example, if the GNOME desktop release is V2.x, the first version of the manual that -->
+<!-- is written in that desktop timeframe is V2.0, the second version of the manual is V2.1, etc. -->
+<!-- When the desktop release version changes to V3.x, the revision number of the manual changes -->
+<!-- to V3.0, and so on. -->  
+    <revhistory>
+      <revision>
+	<revnumber>&applet; Applet Manual V&manrevision;</revnumber>
+	<date>&date;</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.7</revnumber>
+	<date>Sunday, September 2, 2007</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.6</revnumber>
+	<date>Thursday, June 22, 2006</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.5</revnumber>
+	<date>Tuesday, June 20, 2006</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.4</revnumber>
+	<date>Tuesday, February 1, 2005</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.3</revnumber>
+	<date>Saturday, October 9, 2004</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.2</revnumber>
+	<date>Sunday, August 22, 2004</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.1</revnumber>
+	<date>Sunday, August 15, 2004</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+      <revision>
+	<revnumber>&applet; Applet Manual V2.0</revnumber>
+	<date>Tuesday, July 27, 2004</date>
+	<revdescription>
+	  <para role="author">
+	    Jean-Yves Lefort
+	    <email>jylefort@brutele.be</email>
+	  </para>
+	  <para role="publisher">&project;</para>
+	</revdescription>
+      </revision>
+    </revhistory>
+
+    <releaseinfo>
+      This manual describes version &appletversion; of &applet;.
+    </releaseinfo>
+    <legalnotice>
+      <title>Feedback</title>
+      <para>To report a bug or make a suggestion regarding the &applet;
+	applet or this manual, follow the directions in
+	<xref linkend="problem-reports" />.
+      </para>
+      <!-- Translators may also add here feedback address for translations -->
+    </legalnotice>
+  </articleinfo>
+
+  <indexterm zone="index">
+    <primary>Link Monitor</primary>
+  </indexterm>
+
+  <sect1 id="introduction">
+    <title>Introduction</title>
+
+    <figure id="link-monitor-applet"> 
+      <title>The &applet; applet monitoring the link to five hosts</title>
+      <screenshot>
+        <mediaobject>
+          <imageobject>
+	    <imagedata fileref="figures/link-monitor-applet.png" format="PNG"/>
+          </imageobject>
+          <textobject>
+            <phrase>The &applet; applet displaying a bar graph containing five bars, one per monitored host.</phrase>
+          </textobject>
+        </mediaobject>
+      </screenshot>
+    </figure>
+    
+    <para>
+      The &applet; applet displays the round-trip time to a set of
+      hosts in a bar graph.
+    </para>
+      
+    <sect2 id="to-add">
+      <title>To Add &applet; to a Panel</title>
+      <para>
+	To add &applet; to a panel, perform the following steps:
+	<orderedlist>
+	  <listitem>
+	    <para>
+	      Right-click on the panel and choose
+	      <menuchoice><guimenuitem>Add to Panel</guimenuitem></menuchoice>.
+	    </para>
+	  </listitem>
+	  <listitem>
+	    <para>
+	      Select <guilabel>Link Monitor</guilabel> in the item list.
+	    </para>
+	  </listitem>
+	  <listitem>
+	    <para>
+	      Click on the <guibutton>Add</guibutton> button.
+	    </para>
+	  </listitem>
+	</orderedlist>
+      </para>
+    </sect2>
+  </sect1>
+
+  <sect1 id="usage">
+    <title>Usage</title>
+    <para>
+      To add hosts to the bar graph, display the <link
+      linkend="preferences">Preferences</link> dialog by clicking on
+      the &applet; applet.
+    </para>
+    <para>
+      &icmp; or &icmpv6; echo requests are sent to the monitored hosts
+      at regular intervals (configurable in the <link
+      linkend="preferences">Preferences</link> dialog). When an echo
+      reply is received from a host, the round-trip time is computed
+      and the bar graph is updated (the scale of the graph is
+      configurable in the <link
+      linkend="preferences">Preferences</link> dialog).
+    </para>
+    <para>
+      If a host does not reply, its bar is outlined.
+    </para>
+  </sect1>
+
+  <sect1 id="preferences"> 
+    <title>Preferences</title> 
+    <para>
+      To configure the &applet; applet, open the
+      <guilabel>Preferences</guilabel> dialog by clicking on the
+      applet.
+      The <guilabel>Preferences</guilabel> dialog contains the
+      following settings:
+    </para>
+
+    <variablelist>
+      <varlistentry>
+	<term><guilabel>Hosts</guilabel></term>
+	<listitem>
+	  <para>
+	    This is the list of hosts to monitor. The hosts will
+	    appear in the bar graph in the same order as in this list.
+	  </para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term><guilabel>General</guilabel></term>
+	<listitem>
+	  <variablelist>
+	    <varlistentry>
+	      <term><guilabel>Delay between echo requests</guilabel></term>
+	      <listitem>
+		<para>
+		  The amount of time to wait between sending each echo
+		  request to a particular host.
+		</para>
+	      </listitem>
+	    </varlistentry>
+	    <varlistentry>
+	      <term><guilabel>Graphs scale</guilabel></term>
+	      <listitem>
+		<para>
+		  The scale of the applet and tooltip graphs.
+		</para>
+	      </listitem>
+	    </varlistentry>
+	    <varlistentry>
+	      <term><guilabel>Tooltip graph span</guilabel></term>
+	      <listitem>
+		<para>
+		  The amount of history to display in the tooltip
+		  graph.
+		</para>
+	      </listitem>
+	    </varlistentry>
+	  </variablelist>
+	</listitem>
+      </varlistentry>
+    </variablelist>
+  </sect1>
+
+  <sect1 id="about">
+    <title>About &applet;</title>
+    <para>&applet; was written by Jean-Yves Lefort
+      (<email>jylefort@brutele.be</email>). To find more information about
+      &applet;, please visit the
+      <ulink url="http://www.nongnu.org/link-monitor" type="http">Link Monitor web page</ulink>.
+    </para>
+    
+    <sect2 id="problem-reports">
+      <title>Reporting Bugs and Other Feedback</title>
+      <para>
+	Bug reports and feature requests should be filed in the
+	<ulink url="https://bugs.launchpad.net/link-monitor-applet/" type="http">Link Monitor bug tracker</ulink>.
+	Other feedback can be sent to Jean-Yves Lefort <email>jylefort@brutele.be</email>.
+      </para>
+    </sect2>
+
+    <sect2 id="licensing-terms">
+      <title>Licensing Terms</title>
+      &software-license;
+    </sect2>
+  </sect1>
+
+  <glossary id="glossary">
+    <title>Glossary</title>
+
+    <glossdiv><title>I</title>
+      <glossentry>
+	<glossterm>ICMP</glossterm>
+	<glosssee otherterm="icmp"/>
+      </glossentry>
+
+      <glossentry>
+	<glossterm>ICMPv6</glossterm>
+	<glosssee otherterm="icmpv6"/>
+      </glossentry>
+
+      <glossentry id="icmp">
+	<glossterm>Internet Control Message Protocol</glossterm>
+	<acronym>ICMP</acronym>
+	<glossdef>
+	  <para>
+	    A protocol for providing feedback about problems in the IP
+	    communication environment, as defined
+	    by <ulink url="http://www.ietf.org/rfc/rfc792.txt" type="http">RFC 792</ulink>.
+	  </para>
+	</glossdef>
+      </glossentry>
+
+      <glossentry id="icmpv6">
+	<glossterm>Internet Control Message Protocol Version 6</glossterm>
+	<acronym>ICMPv6</acronym>
+	<glossdef>
+	  <para>
+	    A protocol which is to IPv6 what &icmp; is to IPv4,
+	    as defined by <ulink url="http://www.ietf.org/rfc/rfc2463.txt" type="http">RFC 2463</ulink>.
+	  </para>
+	</glossdef>
+      </glossentry>
+    </glossdiv>
+  </glossary>
+</article>

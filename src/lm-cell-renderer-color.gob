@@ -1,0 +1,206 @@
+/*
+ * Link Monitor Applet
+ * Copyright (C) 2004-2008 Jean-Yves Lefort <jylefort@brutele.be>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+%headertop{
+#include <gtk/gtk.h>
+%}
+
+%{
+#include <string.h>
+#include "lm-util.h"
+
+#define SIZE 16
+%}
+
+class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+{
+  private GdkGC *gc unrefwith g_object_unref;
+
+  private gboolean has_color;
+  private GdkColor color;
+
+  property BOXED color (boxed_type = Gdk:Color)
+    set
+    {
+      const GdkColor *p;
+
+      p = g_value_get_boxed(VAL);
+      if (p)
+	{
+	  selfp->has_color = TRUE;
+	  selfp->color = *p;
+	}
+      else
+	{
+	  selfp->has_color = FALSE;
+	  memset(&selfp->color, 0, sizeof(selfp->color));
+	}
+    }
+    get
+    {
+      g_value_set_boxed(VAL, &selfp->color);
+    };
+
+  signal private NONE (STRING)
+    void activated (self, const char *path (check null));
+
+  init (self)
+  {
+    g_object_set(self, "mode", GTK_CELL_RENDERER_MODE_ACTIVATABLE, NULL);
+  }
+
+  private void
+    get_size (self,
+	      GtkWidget *widget,
+	      GdkRectangle *cell_area,
+	      int *x_offset,
+	      int *y_offset,
+	      int *width,
+	      int *height)
+  {
+    GtkCellRenderer *cell = GTK_CELL_RENDERER(self);
+    int _width;
+    int _height;
+
+    _width = cell->xpad * 2 + SIZE;
+    _height = cell->ypad * 2 + SIZE;
+
+    if (width)
+      *width = _width;
+    if (height)
+      *height = _height;
+
+    if (cell_area)
+      {
+	if (x_offset)
+	  {
+	    *x_offset = ((gtk_widget_get_direction(widget) == GTK_TEXT_DIR_RTL) ?
+			 (1.0 - cell->xalign) : cell->xalign) * (cell_area->width - _width);
+	    *x_offset = MAX(*x_offset, 0);
+	  }
+	if (y_offset)
+	  {
+	    *y_offset = cell->yalign * (cell_area->height - _height);
+	    *y_offset = MAX(*y_offset, 0);
+	  }
+      }
+    else
+      {
+	if (x_offset)
+	  *x_offset = 0;
+	if (y_offset)
+	  *y_offset = 0;
+      }
+  }
+
+  override (Gtk:Cell:Renderer) void
+    get_size (GtkCellRenderer *cell,
+	      GtkWidget *widget,
+	      GdkRectangle *cell_area,
+	      int *x_offset,
+	      int *y_offset,
+	      int *width,
+	      int *height)
+  {
+    return self_get_size(SELF(cell), widget, cell_area, x_offset, y_offset, width, height);
+  }
+
+  override (Gtk:Cell:Renderer) void
+    render (GtkCellRenderer *cell,
+	    GdkDrawable *window,
+	    GtkWidget *widget,
+	    GdkRectangle *background_area,
+	    GdkRectangle *cell_area,
+	    GdkRectangle *expose_area,
+	    GtkCellRendererState flags)
+  {
+    Self *self = SELF(cell);
+    int x_offset;
+    int y_offset;
+    int width;
+    int height;
+    int x;
+    int y;
+    GtkStateType state;
+
+    if (! selfp->has_color)
+      return;
+
+    self_get_size(self, widget, cell_area, &x_offset, &y_offset, &width, &height);
+
+    width -= cell->xpad * 2;
+    height -= cell->ypad * 2;
+
+    if (width <= 0 || height <= 0)
+      return;
+
+    x = cell_area->x + x_offset + cell->xpad;
+    y = cell_area->y + y_offset + cell->ypad;
+
+    if (! cell->sensitive)
+      state = GTK_STATE_INSENSITIVE;
+    else if ((flags & GTK_CELL_RENDERER_SELECTED) != 0)
+      {
+	if (GTK_WIDGET_HAS_FOCUS(widget))
+	  state = GTK_STATE_SELECTED;
+	else
+	  state = GTK_STATE_ACTIVE;
+      }
+    else
+      state = GTK_STATE_NORMAL;
+
+    if (! selfp->gc)
+      selfp->gc = gdk_gc_new(window);
+
+    gdk_gc_set_rgb_fg_color(selfp->gc, &selfp->color);
+
+    lm_paint_box(window,
+		 state,
+		 GTK_SHADOW_IN,
+		 expose_area,
+		 widget,
+		 selfp->gc,
+		 x,
+		 y,
+		 width,
+		 height);
+  }
+
+  override (Gtk:Cell:Renderer) gboolean
+    activate (GtkCellRenderer *cell,
+	      GdkEvent *event,
+	      GtkWidget *widget,
+	      const char *path,
+	      GdkRectangle *background_area,
+	      GdkRectangle *cell_area,
+	      GtkCellRendererState flags)
+  {
+    Self *self = SELF(cell);
+
+    self_activated(self, path);
+
+    return TRUE;
+  }
+
+  public GtkCellRenderer *
+    new (void)
+  {
+    return GTK_CELL_RENDERER(GET_NEW);
+  }
+}

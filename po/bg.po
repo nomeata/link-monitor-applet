@@ -1,0 +1,498 @@
+# Bulgarian translations for link-monitor-applet.
+# Copyright (c) 2004-2007 Jean-Yves Lefort.
+#
+# This file is distributed under the same license as the
+# link-monitor-applet package.
+#
+# Yavor Doganov <yavor@doganov.org>, 2007.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: link-monitor-applet 2.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2007-01-13 18:23+0200\n"
+"PO-Revision-Date: 2007-09-02 17:51+0200\n"
+"Last-Translator: Yavor Doganov <yavor@doganov.org>\n"
+"Language-Team: Bulgarian <dict@fsa-bg.org\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#. translators: header capitalization
+#: ../data/GNOME_LinkMonitorApplet.server.in.in.h:1
+#: ../src/lm-about-dialog.gob:48
+msgid "Link Monitor"
+msgstr "Датчик на свързвания"
+
+#: ../data/GNOME_LinkMonitorApplet.server.in.in.h:2
+msgid "Monitor the round-trip time to one or more hosts"
+msgstr "Следене на свързването към един или повече хостове"
+
+#: ../data/link-monitor-applet.schemas.in.h:1
+msgid "Delay between echo requests"
+msgstr "Закъснение между заявките"
+
+#: ../data/link-monitor-applet.schemas.in.h:2
+msgid "Echo reply timeout"
+msgstr "Краен срок за отговор на заявката"
+
+#: ../data/link-monitor-applet.schemas.in.h:3
+msgid "Graphs scale"
+msgstr "Мащаб на диаграмата"
+
+#: ../data/link-monitor-applet.schemas.in.h:4
+msgid "Height of the preferences dialog"
+msgstr "Височина на диалоговия прозорец за настройки"
+
+#: ../data/link-monitor-applet.schemas.in.h:5
+msgid "Hosts list"
+msgstr "Списък с хостове"
+
+#: ../data/link-monitor-applet.schemas.in.h:6
+msgid ""
+"The amount of time to wait between sending each echo request to a particular "
+"host."
+msgstr ""
+"Времето, което да се изчаква между отделните заявки към определен хост."
+
+#: ../data/link-monitor-applet.schemas.in.h:7
+msgid ""
+"The delay after which a host is considered dead if no reply was received."
+msgstr ""
+"Закъснението, след което даден хост се счита за недостъпен, ако не се получи "
+"отговор."
+
+#: ../data/link-monitor-applet.schemas.in.h:8
+msgid "The height of the preferences dialog."
+msgstr "Височината на диалоговия прозорец за настройки."
+
+#: ../data/link-monitor-applet.schemas.in.h:9
+msgid "The list of hosts to monitor."
+msgstr "Списъкът на хостовете за следене."
+
+#: ../data/link-monitor-applet.schemas.in.h:10
+msgid "The scale of the graphs, in milliseconds."
+msgstr "Мащабът на диаграмата, в милисекунди."
+
+#: ../data/link-monitor-applet.schemas.in.h:11
+msgid "The width of the preferences dialog."
+msgstr "Ширина на диалоговия прозорец за настройки."
+
+#: ../data/link-monitor-applet.schemas.in.h:12
+msgid "Width of the preferences dialog"
+msgstr "Ширина на диалоговия прозорец за настройки"
+
+#: ../src/lm-about-dialog.gob:51
+msgid "The link monitor displays the round-trip time to one or more hosts."
+msgstr ""
+"Датчикът на свързвания изобразява свързванията към един или повече хостове."
+
+#.
+#. * translators: Your Name <your-email>
+#. * optionally followed by one or more: \nOther Contributor's Name <his-email>
+#.
+#: ../src/lm-about-dialog.gob:59
+msgid "translator-credits"
+msgstr ""
+"Явор Доганов <yavor@doganov.org>\n"
+"\n"
+"Проектът за превод на GNOME има нужда от подкрепа.\n"
+"Научете повече за нас на http://gnome.cult.bg\n"
+"Докладвайте за грешки на http://gnome.cult.bg/bugs"
+
+#: ../src/lm-about-dialog.gob:81
+msgid "Unable to open link"
+msgstr "Неуспех при осъществяването на връзката"
+
+#. translators: header capitalization
+#: ../src/lm-applet.gob:464
+msgid "<span size=\"small\">Link Monitor</span>"
+msgstr "<span size=\"small\">Датчик на свързвания</span>"
+
+#: ../src/lm-applet.gob:505
+msgid "No host is being monitored."
+msgstr "Не се наблюдава нито един хост."
+
+#: ../src/lm-host-frontend.gob:300
+#, c-format
+msgid "unable to load %s: %s"
+msgstr "неуспех при зареждането на %s: %s"
+
+#: ../src/lm-host-frontend.gob:343
+msgid "resolving hostname"
+msgstr "разрешаване на името на хоста"
+
+#: ../src/lm-host-frontend.gob:379
+#, c-format
+msgid "%.0f ms"
+msgstr "%.0f мсек"
+
+#: ../src/lm-host-frontend.gob:410
+#, c-format
+msgid "last reply: %i” ago"
+msgstr "последен отговор: преди %i”"
+
+#: ../src/lm-host-frontend.gob:412
+#, c-format
+msgid "last reply: %.2i:%.2i” ago"
+msgstr "последен отговор: преди %.2i:%.2i”"
+
+#: ../src/lm-host-frontend.gob:414
+#, c-format
+msgid "last reply: %.2i:%.2i:%.2i” ago"
+msgstr "последен отговор: преди %.2i:%.2i:%.2i”"
+
+#: ../src/lm-host-view.gob:110 ../ui/preferences-dialog.glade.h:5
+msgid "Move _Up"
+msgstr "На_горе"
+
+#: ../src/lm-host-view.gob:111 ../ui/preferences-dialog.glade.h:4
+msgid "Move _Down"
+msgstr "_Надолу"
+
+#: ../src/lm-host-view.gob:138
+msgid "Host"
+msgstr "Хост"
+
+#: ../src/lm-host.gob:260
+#, c-format
+msgid "socket could not be initialized: %s"
+msgstr "неуспех при инициализирането на гнездо: %s"
+
+#: ../src/lm-host.gob:263
+msgid "unsupported address family"
+msgstr "неподдържано адресно пространство"
+
+#: ../src/lm-host.gob:271
+#, c-format
+msgid "unable to resolve hostname: %s"
+msgstr "неуспех при разрешаването на името на хоста: %s"
+
+#: ../src/lm-host.gob:330
+#, c-format
+msgid "unable to send echo request: %s"
+msgstr "неуспех при изпращането на заявка: %s"
+
+#: ../src/lm-icmp.c:238
+msgid "could not send whole packet"
+msgstr "неуспех при изпращането на целия пакет"
+
+#: ../src/lm-icmp.c:355 ../src/lm-icmp.c:434
+msgid "echo reply"
+msgstr "отговор тип „echo“"
+
+#: ../src/lm-icmp.c:359
+msgid "destination network unreachable"
+msgstr "мрежата е недостъпна"
+
+#: ../src/lm-icmp.c:360 ../src/lm-icmp.c:413
+msgid "destination host unreachable"
+msgstr "хостът е недостъпен"
+
+#: ../src/lm-icmp.c:361
+msgid "destination protocol unreachable"
+msgstr "протоколът е недостъпен"
+
+#: ../src/lm-icmp.c:362 ../src/lm-icmp.c:414
+msgid "destination port unreachable"
+msgstr "портът е недостъпен"
+
+#: ../src/lm-icmp.c:363
+msgid "fragmentation needed and DF set"
+msgstr "необходима е фрагментация и е настроен „DF“"
+
+#: ../src/lm-icmp.c:364
+msgid "source route failed"
+msgstr "неуспех при маршрутизирането"
+
+#: ../src/lm-icmp.c:365
+msgid "communication prohibited by filter"
+msgstr "връзката е забранена чрез филтър"
+
+#: ../src/lm-icmp.c:366
+msgid "destination unreachable, unknown ICMP code"
+msgstr "адресът е недостъпен, непознат код тип „ICMP“"
+
+#: ../src/lm-icmp.c:368
+msgid "source quench"
+msgstr "заглъхване на източника"
+
+#: ../src/lm-icmp.c:372
+msgid "redirect network"
+msgstr "пренасочване на мрежа"
+
+#: ../src/lm-icmp.c:373
+msgid "redirect host"
+msgstr "пренасочване на хост"
+
+#: ../src/lm-icmp.c:374
+msgid "redirect type of service and network"
+msgstr "пренасочване на вид услуга и мрежа"
+
+#: ../src/lm-icmp.c:375
+msgid "redirect type of service and host"
+msgstr "пренасочване на вид услуга и хост"
+
+#: ../src/lm-icmp.c:376
+msgid "redirect, unknown ICMP code"
+msgstr "пренасочване, непознат код тип „ICMP“"
+
+#: ../src/lm-icmp.c:378 ../src/lm-icmp.c:433
+msgid "echo request"
+msgstr "заявка тип „echo“"
+
+#: ../src/lm-icmp.c:382 ../src/lm-icmp.c:421
+msgid "time to live exceeded"
+msgstr "времето за живот на пакета е надхвърлено"
+
+#: ../src/lm-icmp.c:383 ../src/lm-icmp.c:422
+msgid "fragment reassembly time exceeded"
+msgstr "времето за възстановяване на фрагмента е надхвърлено"
+
+#: ../src/lm-icmp.c:384
+msgid "time exceeded, unknown ICMP code"
+msgstr "времето е надхвърлено, непознат код тип „ICMP“"
+
+#: ../src/lm-icmp.c:386
+msgid "parameter problem"
+msgstr "проблем с параметрите"
+
+#: ../src/lm-icmp.c:387
+msgid "timestamp"
+msgstr "времеви шаблон"
+
+#: ../src/lm-icmp.c:388
+msgid "timestamp reply"
+msgstr "отговор на заявката за времеви шаблон"
+
+#: ../src/lm-icmp.c:389
+msgid "information request"
+msgstr "заявка за информация"
+
+#: ../src/lm-icmp.c:390
+msgid "information reply"
+msgstr "отговор на заявката за информация"
+
+#: ../src/lm-icmp.c:391
+msgid "address mask request"
+msgstr "заявка за маска на адреса"
+
+#: ../src/lm-icmp.c:392
+msgid "address mask reply"
+msgstr "отговор на заявката за маска на адреса"
+
+#: ../src/lm-icmp.c:393 ../src/lm-icmp.c:439
+msgid "router advertisement"
+msgstr "предлагане на маршрутизатор"
+
+#: ../src/lm-icmp.c:394 ../src/lm-icmp.c:438
+msgid "router solicitation"
+msgstr "търсене на маршрутизатор"
+
+#: ../src/lm-icmp.c:395
+msgid "unknown ICMP type"
+msgstr "непознат тип „ICMP“"
+
+#: ../src/lm-icmp.c:410
+msgid "no route to destination"
+msgstr "няма маршрут до зададения адрес"
+
+#: ../src/lm-icmp.c:411
+msgid "destination administratively unreachable"
+msgstr "адресът не е достъпен административно"
+
+#: ../src/lm-icmp.c:412
+msgid "destination unreachable beyond scope"
+msgstr "адресът е недостъпен, извън обсега"
+
+#: ../src/lm-icmp.c:415
+msgid "destination unreachable, unknown ICMPv6 code"
+msgstr "адресът е недостъпен, непознат код тип „ICMPv6“"
+
+#: ../src/lm-icmp.c:417
+msgid "packet too big"
+msgstr "пакетът е твърде голям"
+
+#: ../src/lm-icmp.c:423
+msgid "time exceeded, unknown ICMPv6 code"
+msgstr "времето е надхвърлено, непознат код тип „ICMPv6“"
+
+#: ../src/lm-icmp.c:428
+msgid "parameter problem: erroneous header"
+msgstr "проблем с параметър: грешна заглавна част"
+
+#: ../src/lm-icmp.c:429
+msgid "parameter problem: unknown next header"
+msgstr "проблем с параметър: непозната следваща заглавна част"
+
+#: ../src/lm-icmp.c:430
+msgid "parameter problem: unrecognized option"
+msgstr "проблем с параметър: неразпозната опция"
+
+#: ../src/lm-icmp.c:431
+msgid "parameter problem, unknown ICMPv6 code"
+msgstr "проблем с параметър, непознат код тип „ICMPv6“"
+
+#: ../src/lm-icmp.c:435
+msgid "listener query"
+msgstr "заявка на слушателя"
+
+#: ../src/lm-icmp.c:436
+msgid "listener report"
+msgstr "доклад на слушателя"
+
+#: ../src/lm-icmp.c:437
+msgid "listener done"
+msgstr "слушателят приключи"
+
+#: ../src/lm-icmp.c:440
+msgid "neighbor solicitation"
+msgstr "търсене на съсед"
+
+#: ../src/lm-icmp.c:441
+msgid "neighbor advertisement"
+msgstr "предлагане на съсед"
+
+#: ../src/lm-icmp.c:442
+msgid "redirect"
+msgstr "пренасочване"
+
+#: ../src/lm-icmp.c:443
+msgid "node information query"
+msgstr "заявка за информация за възел"
+
+#: ../src/lm-icmp.c:444
+msgid "node information reply"
+msgstr "отговор на заявката за информация на възел"
+
+#: ../src/lm-icmp.c:445
+msgid "unknown ICMPv6 type"
+msgstr "непознат тип „ICMPv6“"
+
+#. translators: header capitalization
+#: ../src/lm-main.c:87 ../src/lm-main.c:104
+msgid "Link Monitor Applet"
+msgstr "Датчик на свързвания"
+
+#.
+#. * We can't use lm_error_dialog() because gtk_init() has not been
+#. * called yet.
+#.
+#: ../src/lm-main.c:95
+msgid "multi-threading is not available"
+msgstr "не се поддържат много нишки"
+
+#. translators: header capitalization
+#: ../src/lm-preferences-dialog.gob:82 ../ui/preferences-dialog.glade.h:3
+msgid "Link Monitor Preferences"
+msgstr "Настройки на датчика за свързвания"
+
+#: ../src/lm-preferences-dialog.gob:141
+msgid "No host selected."
+msgstr "Няма избран хост."
+
+#: ../src/lm-preferences-dialog.gob:146
+#, c-format
+msgid "%i host selected."
+msgid_plural "%i hosts selected."
+msgstr[0] "Избран е %i хост."
+msgstr[1] "Избрани са %i хоста."
+
+#: ../src/lm-shell.gob:100
+#, c-format
+msgid "unable to set O_NONBLOCK flag: %s"
+msgstr "неуспех при настройването на флаг O_NONBLOCK: %s"
+
+#. translators: header capitalization
+#: ../src/lm-stock.c:29
+msgid "Select _All"
+msgstr "Избор на _всички"
+
+#: ../src/lm-util.c:102
+#, c-format
+msgid ""
+"Unable to load interface \"%s\". Please check your link monitor installation."
+msgstr ""
+"Неуспех при зареждането на интерфейса „%s“. Проверете инсталацията на аплета."
+
+#: ../src/lm-util.c:117
+#, c-format
+msgid ""
+"Widget \"%s\" not found in interface \"%s\". Please check your link monitor "
+"installation."
+msgstr ""
+"Не е намерен графичния обект „%s“ в интерфейса „%s“. Проверете инсталацията "
+"на аплета."
+
+#: ../src/lm-util.c:186
+#, c-format
+msgid "Unable to open self as a module (%s)."
+msgstr "Неуспех при отварянето като модул (%s)."
+
+#: ../src/lm-util.c:191
+#, c-format
+msgid ""
+"Signal handler \"%s\" not found. Please check your link monitor installation."
+msgstr ""
+"Не е намерен модула за обработка на сигнали „%s“. Проверете инсталацията на "
+"аплета."
+
+#: ../src/lm-util.c:212
+#, c-format
+msgid "error loading image: %s"
+msgstr "грешка при зареждане на изображение: %s"
+
+#: ../src/lm-util.c:228
+#, c-format
+msgid "Unable to create a thread: %s."
+msgstr "Неуспех при създаването на нишка: %s"
+
+#: ../src/lm-util.c:241
+#, c-format
+msgid "unable to get current time: %s"
+msgstr "неуспех при определяне на текущото време: %s"
+
+#: ../src/lm-util.c:303
+msgid "Unable to display help"
+msgstr "Неуспех при показването на ръководството"
+
+#: ../src/lm-util.c:443
+msgid "A fatal error has occurred in the link monitor"
+msgstr "Възникна фатална грешка в датчика за свързвания"
+
+#: ../ui/GNOME_LinkMonitorApplet.xml.h:1
+msgid "_About..."
+msgstr "_Относно..."
+
+#: ../ui/GNOME_LinkMonitorApplet.xml.h:2
+msgid "_Help"
+msgstr "Помо_щ"
+
+#: ../ui/GNOME_LinkMonitorApplet.xml.h:3
+msgid "_Preferences..."
+msgstr "_Настройки..."
+
+#: ../ui/preferences-dialog.glade.h:1
+msgid "<span weight=\"bold\">General</span>"
+msgstr "<span weight=\"bold\">Общи</span>"
+
+#: ../ui/preferences-dialog.glade.h:2
+msgid "<span weight=\"bold\">Hosts</span>"
+msgstr "<span weight=\"bold\">Хостове</span>"
+
+#: ../ui/preferences-dialog.glade.h:6
+msgid "_Delay between echo requests:"
+msgstr "З_акъснение между заявките:"
+
+#: ../ui/preferences-dialog.glade.h:7
+msgid "_Echo reply timeout:"
+msgstr "_Краен срок за отговор на заявката:"
+
+#: ../ui/preferences-dialog.glade.h:8
+msgid "_Graphs scale:"
+msgstr "_Мащаб на диаграмата:"
+
+#: ../ui/preferences-dialog.glade.h:9
+msgid "milliseconds"
+msgstr "милисекунди"

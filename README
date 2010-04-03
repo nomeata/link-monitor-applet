@@ -1,0 +1,95 @@
+===============================================================================
+ Link Monitor Applet overview
+===============================================================================
+
+Index
+
+	0. About this document
+	1. About Link Monitor Applet
+	2. Dependencies
+	3. Installation instructions
+
+0. About this document
+
+	$Id: README,v 1.8 2008-02-20 16:51:41 jylefort Exp $
+
+	Copyright (C) 2004-2006 Jean-Yves Lefort.
+
+	Permission is granted to copy, distribute and/or modify this
+	document under the terms of the GNU Free Documentation License
+	(GFDL), Version 1.2 or any later version published by the Free
+	Software Foundation with no Invariant Sections, no Front-Cover
+	Texts, and no Back-Cover Texts. You can find a copy of the
+	GFDL at http://www.gnu.org/licenses/fdl.html or in the file
+	COPYING-DOCS distributed with this manual.
+
+1. About Link Monitor Applet
+
+	Link Monitor Applet is a GNOME Panel Applet displaying the
+	round-trip time to a set of hosts in a bar graph.
+
+	Link Monitor Applet features include:
+
+		* A line graph able to display up to one week of
+		  round-trip time data
+		* Country flags and names
+		* Full ICMP and ICMPv6 support
+		* HIG 2.0 compliance
+
+2. Dependencies
+
+	Mandatory:
+
+		* GTK+ (version 2.12.0 or superior)
+		  http://www.gtk.org/
+
+		* GNOME (version 2.6.0 or superior)
+		  http://www.gnome.org/
+
+	Optional:
+
+		* for country information support:
+
+		  GeoIP
+		  http://www.maxmind.com/geoip/
+
+		  and a GTK+ SVG loader, for instance:
+
+		  librsvg (version 2.0 or superior)
+		  http://librsvg.sourceforge.net/
+
+3. Installation instructions
+
+	To configure, build and install Link Monitor Applet, use the
+	following commands:
+
+		./jb configure
+		./jb build
+		sudo ./jb install
+
+	Note that a number of settings can be passed to the configure
+	stage, for instance:
+
+		./jb configure prefix=/opt cflags=-O3 geoip=no
+
+	For details, use:
+
+		./jb help
+
+	For more informations about JB (the Jean-Yves Lefort's Build
+	System), read jbsrc/lib/README.
+
+	IMPORTANT:
+
+		* The install phase will enable the setuid bit on the
+		  link-monitor-applet binary (root privileges are
+		  needed to create the ICMP and ICMPv6 sockets upon
+		  applet startup; they will be dropped after that
+		  step). You therefore need to run the install stage
+		  as root, even for installing Link Monitor Applet in
+		  your home directory.
+
+		* Due to a bug in bonobo-activation
+		  (http://bugzilla.gnome.org/show_bug.cgi?id=151082),
+		  your session must be restarted after installing Link
+		  Monitor Applet.
