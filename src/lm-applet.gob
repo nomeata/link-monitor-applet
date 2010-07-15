@@ -216,6 +216,8 @@ class LM:Applet from Panel:Applet
     if (self->scale < MIN_SCALE)
       self->scale = DEFAULT_SCALE;
 
+    self->logarithmic = panel_applet_gconf_get_bool(applet, CONF_LOGARITHMIC, NULL);
+
     self->tooltip_graph_span = panel_applet_gconf_get_int(applet, CONF_TOOLTIP_GRAPH_SPAN, NULL);
     if (self->tooltip_graph_span < MIN_TOOLTIP_GRAPH_SPAN)
       self->tooltip_graph_span = DEFAULT_TOOLTIP_GRAPH_SPAN;

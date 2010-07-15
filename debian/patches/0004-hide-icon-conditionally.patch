@@ -1,4 +1,4 @@
-From e9efa19411b6cc9216d3dc7f602379d964453c29 Mon Sep 17 00:00:00 2001
+From e074aa033bdd718ebafa8dcc461a3704fe9032b6 Mon Sep 17 00:00:00 2001
 From: Joachim Breitner <mail@joachim-breitner.de>
 Date: Sat, 3 Apr 2010 18:34:51 +0200
 Subject: hide icon conditionally
@@ -9,10 +9,10 @@ Patch provided by Octavio Alvarez.
  1 files changed, 6 insertions(+), 3 deletions(-)
 
 diff --git a/src/lm-applet.gob b/src/lm-applet.gob
-index 15fbc32..76adb42 100644
+index 84ab5f3..4e99f5e 100644
 --- a/src/lm-applet.gob
 +++ b/src/lm-applet.gob
-@@ -510,9 +510,12 @@ class LM:Applet from Panel:Applet
+@@ -512,9 +512,12 @@ class LM:Applet from Panel:Applet
  	break;
        }
  

@@ -1,4 +1,4 @@
-From 6caec5a4729a9dd8eeebae5d53c4cda00eee3fe4 Mon Sep 17 00:00:00 2001
+From 5f22d181ba3c330b0bd968de8732fcc60c9bb722 Mon Sep 17 00:00:00 2001
 From: Joachim Breitner <mail@joachim-breitner.de>
 Date: Thu, 15 Jul 2010 22:10:57 +0200
 Subject: Add support for logarithmic scale
@@ -12,11 +12,11 @@ on both local pings in the range of a few ms and remote pings in the
 range of seconds.
 ---
  data/link-monitor-applet.schemas.in |   10 ++++++
- src/lm-applet.gob                   |   13 ++++++++
+ src/lm-applet.gob                   |   15 +++++++++
  src/lm-bar-graph.gob                |   17 +++++++++-
  src/lm-preferences-dialog.gob       |   22 ++++++++++++++
  ui/preferences-dialog.glade         |   54 +++++++++++++++++++++++++++++++++++
- 5 files changed, 114 insertions(+), 2 deletions(-)
+ 5 files changed, 116 insertions(+), 2 deletions(-)
 
 diff --git a/data/link-monitor-applet.schemas.in b/data/link-monitor-applet.schemas.in
 index 9e197de..b63ec04 100644
@@ -40,7 +40,7 @@ index 9e197de..b63ec04 100644
        <owner>link-monitor-applet</owner>
        <type>int</type>
 diff --git a/src/lm-applet.gob b/src/lm-applet.gob
-index 849cb67..15fbc32 100644
+index 849cb67..84ab5f3 100644
 --- a/src/lm-applet.gob
 +++ b/src/lm-applet.gob
 @@ -50,6 +50,7 @@
@@ -77,6 +77,15 @@ index 849cb67..15fbc32 100644
    public int tooltip_graph_span; /* seconds */
    property INT tooltip_graph_span (minimum = MIN_TOOLTIP_GRAPH_SPAN, default_value = DEFAULT_TOOLTIP_GRAPH_SPAN, export)
      set
+@@ -203,6 +216,8 @@ class LM:Applet from Panel:Applet
+     if (self->scale < MIN_SCALE)
+       self->scale = DEFAULT_SCALE;
+ 
++    self->logarithmic = panel_applet_gconf_get_bool(applet, CONF_LOGARITHMIC, NULL);
++
+     self->tooltip_graph_span = panel_applet_gconf_get_int(applet, CONF_TOOLTIP_GRAPH_SPAN, NULL);
+     if (self->tooltip_graph_span < MIN_TOOLTIP_GRAPH_SPAN)
+       self->tooltip_graph_span = DEFAULT_TOOLTIP_GRAPH_SPAN;
 diff --git a/src/lm-bar-graph.gob b/src/lm-bar-graph.gob
 index 22807d5..a8a18d8 100644
 --- a/src/lm-bar-graph.gob
