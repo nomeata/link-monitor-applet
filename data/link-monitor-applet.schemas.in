@@ -31,6 +31,16 @@
       </locale>
     </schema>
     <schema>
+      <key>/schemas/apps/link-monitor-applet/prefs/logarithmic</key>
+      <owner>link-monitor-applet</owner>
+      <type>bool</type>
+      <default>FALSE</default>
+      <locale name="C">
+        <short>Scale type</short>
+        <long>Whether the panel scale is logarithmic</long>
+      </locale>
+    </schema>
+    <schema>
       <key>/schemas/apps/link-monitor-applet/prefs/tooltip_graph_span</key>
       <owner>link-monitor-applet</owner>
       <type>int</type>
