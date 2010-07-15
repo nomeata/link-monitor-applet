@@ -19,6 +19,7 @@
 
 %headertop{
 #include <gtk/gtk.h>
+#include <math.h>
 #include "lm-decls.h"
 %}
 
@@ -222,8 +223,20 @@ class LM:Bar:Graph from Gtk:Widget
 
     if (base_host->alive)
       {
-	fraction = ((double) base_host->roundtrip_time / 1000) / selfp->applet->scale;
-	fraction = CLAMP(fraction, 0.0, 1.0);
+      	if (selfp->applet->logarithmic)
+	  {
+	    // time == scale       results in fraction = 1
+	    // time == scale/10000 results in fraction = 0
+	    // The 4 comes from log10(10000) = 4
+	    // The factor 1000 is the unit conversion
+	    fraction = (log10((double) base_host->roundtrip_time / (1000 * selfp->applet->scale)) + 4)/4;
+	    fraction = CLAMP(fraction, 0.0, 1.0);
+	  }
+	else
+	  {
+	    fraction = ((double) base_host->roundtrip_time / 1000) / selfp->applet->scale;
+	    fraction = CLAMP(fraction, 0.0, 1.0);
+	  }
       }
     else
       fraction = 1.0;

@@ -50,6 +50,7 @@
 #define CONF_HOSTS			"hosts"
 #define CONF_DELAY			"delay"
 #define CONF_SCALE			"scale"
+#define CONF_LOGARITHMIC		"logarithmic"
 #define CONF_TOOLTIP_GRAPH_SPAN		"tooltip_graph_span"
 #define CONF_PREFERENCES_WIDTH		"preferences_width"
 #define CONF_PREFERENCES_HEIGHT		"preferences_height"
@@ -58,6 +59,7 @@
 
 #define DEFAULT_DELAY			1000
 #define DEFAULT_SCALE			500
+#define DEFAULT_LOGARITHMIC		FALSE
 #define DEFAULT_TOOLTIP_GRAPH_SPAN	60
 #define DEFAULT_PREFERENCES_WIDTH	-1
 #define DEFAULT_PREFERENCES_HEIGHT	400
@@ -94,6 +96,17 @@ class LM:Applet from Panel:Applet
     get
     {
       g_value_set_int(VAL, self->scale);
+    };
+
+  public gboolean logarithmic;	/* whether the panel scale is logarithmic */
+  property BOOLEAN logarithmic (default_value = DEFAULT_LOGARITHMIC, export)
+    set
+    {
+      panel_applet_gconf_set_bool(PANEL_APPLET(self), CONF_LOGARITHMIC, self->logarithmic = g_value_get_boolean(VAL), NULL);
+    }
+    get
+    {
+      g_value_set_boolean(VAL, self->logarithmic);
     };
 
   public int tooltip_graph_span; /* seconds */
@@ -210,6 +223,8 @@ class LM:Applet from Panel:Applet
     self->scale = panel_applet_gconf_get_int(applet, CONF_SCALE, NULL);
     if (self->scale < MIN_SCALE)
       self->scale = DEFAULT_SCALE;
+
+    self->logarithmic = panel_applet_gconf_get_bool(applet, CONF_LOGARITHMIC, NULL);
 
     self->tooltip_graph_span = panel_applet_gconf_get_int(applet, CONF_TOOLTIP_GRAPH_SPAN, NULL);
     if (self->tooltip_graph_span < MIN_TOOLTIP_GRAPH_SPAN)

@@ -82,6 +82,9 @@ class LM:Preferences:Dialog from LM:Dialog
   private GtkWidget *delay_scale;
   private GtkWidget *scale_label;
   private GtkWidget *scale_scale;
+  private GtkWidget *scale_style_label;
+  private GtkWidget *scale_style_linear_radio;
+  private GtkWidget *scale_style_logarithmic_radio;
   private GtkWidget *tooltip_graph_span_label;
   private GtkWidget *tooltip_graph_span_scale;
 
@@ -104,6 +107,9 @@ class LM:Preferences:Dialog from LM:Dialog
 				  "delay_scale", &selfp->delay_scale,
 				  "scale_label", &selfp->scale_label,
 				  "scale_scale", &selfp->scale_scale,
+				  "scale_style_label", &selfp->scale_style_label,
+				  "scale_style_linear_radio", &selfp->scale_style_linear_radio,
+				  "scale_style_logarithmic_radio", &selfp->scale_style_logarithmic_radio,
 				  "tooltip_graph_span_label", &selfp->tooltip_graph_span_label,
 				  "tooltip_graph_span_scale", &selfp->tooltip_graph_span_scale,
 				  NULL);
@@ -135,6 +141,7 @@ class LM:Preferences:Dialog from LM:Dialog
     size_group = gtk_size_group_new(GTK_SIZE_GROUP_HORIZONTAL);
     gtk_size_group_add_widget(size_group, selfp->delay_label);
     gtk_size_group_add_widget(size_group, selfp->scale_label);
+    gtk_size_group_add_widget(size_group, selfp->scale_style_label);
     gtk_size_group_add_widget(size_group, selfp->tooltip_graph_span_label);
     g_object_unref(size_group);
 
@@ -149,6 +156,9 @@ class LM:Preferences:Dialog from LM:Dialog
 
     lm_non_linear_range_setup_static(GTK_RANGE(selfp->scale_scale), scale_blocks, G_N_ELEMENTS(scale_blocks));
     lm_non_linear_range_set_value(GTK_RANGE(selfp->scale_scale), selfp->applet->scale);
+
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(selfp->scale_style_linear_radio), !selfp->applet->logarithmic);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(selfp->scale_style_logarithmic_radio), selfp->applet->logarithmic);
 
     lm_non_linear_range_setup_static(GTK_RANGE(selfp->tooltip_graph_span_scale), lm_preferences_dialog_tooltip_graph_span_blocks, G_N_ELEMENTS(lm_preferences_dialog_tooltip_graph_span_blocks));
     lm_non_linear_range_set_value(GTK_RANGE(selfp->tooltip_graph_span_scale), selfp->applet->tooltip_graph_span * 1000);
@@ -280,6 +290,18 @@ class LM:Preferences:Dialog from LM:Dialog
     scale_scale_value_changed_h (self, GtkRange *range)
   {
     lm_applet_set_scale(selfp->applet, lm_non_linear_range_get_value(range));
+  }
+  
+  protected void
+    scale_style_linear_toggled_h(self, GtkToggleButton *toggle)
+  {
+    lm_applet_set_logarithmic(selfp->applet, !gtk_toggle_button_get_active(toggle));
+  }
+
+  protected void
+    scale_style_logarithmic_toggled_h(self, GtkToggleButton *toggle)
+  {
+    lm_applet_set_logarithmic(selfp->applet, gtk_toggle_button_get_active(toggle));
   }
 
   protected void
