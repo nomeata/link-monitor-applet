@@ -1,0 +1,243 @@
+From 6caec5a4729a9dd8eeebae5d53c4cda00eee3fe4 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Thu, 15 Jul 2010 22:10:57 +0200
+Subject: Add support for logarithmic scale
+
+This patch adds a new preference choice (linear or logarithmic),
+including a corresponding GConf key and applet object attribute. It only
+affects the colored bars in the panel, not the graph. The scale slider
+specifies the upper bound of the graph, the lower bound is hard-coded to
+a 10000th of the upper graph. This allows, for example, to keep an eye
+on both local pings in the range of a few ms and remote pings in the
+range of seconds.
+---
+ data/link-monitor-applet.schemas.in |   10 ++++++
+ src/lm-applet.gob                   |   13 ++++++++
+ src/lm-bar-graph.gob                |   17 +++++++++-
+ src/lm-preferences-dialog.gob       |   22 ++++++++++++++
+ ui/preferences-dialog.glade         |   54 +++++++++++++++++++++++++++++++++++
+ 5 files changed, 114 insertions(+), 2 deletions(-)
+
+diff --git a/data/link-monitor-applet.schemas.in b/data/link-monitor-applet.schemas.in
+index 9e197de..b63ec04 100644
+--- a/data/link-monitor-applet.schemas.in
++++ b/data/link-monitor-applet.schemas.in
+@@ -31,6 +31,16 @@
+       </locale>
+     </schema>
+     <schema>
++      <key>/schemas/apps/link-monitor-applet/prefs/logarithmic</key>
++      <owner>link-monitor-applet</owner>
++      <type>bool</type>
++      <default>FALSE</default>
++      <locale name="C">
++        <short>Scale type</short>
++        <long>Whether the panel scale is logarithmic</long>
++      </locale>
++    </schema>
++    <schema>
+       <key>/schemas/apps/link-monitor-applet/prefs/tooltip_graph_span</key>
+       <owner>link-monitor-applet</owner>
+       <type>int</type>
+diff --git a/src/lm-applet.gob b/src/lm-applet.gob
+index 849cb67..15fbc32 100644
+--- a/src/lm-applet.gob
++++ b/src/lm-applet.gob
+@@ -50,6 +50,7 @@
+ #define CONF_HOSTS			"hosts"
+ #define CONF_DELAY			"delay"
+ #define CONF_SCALE			"scale"
++#define CONF_LOGARITHMIC		"logarithmic"
+ #define CONF_TOOLTIP_GRAPH_SPAN		"tooltip_graph_span"
+ #define CONF_PREFERENCES_WIDTH		"preferences_width"
+ #define CONF_PREFERENCES_HEIGHT		"preferences_height"
+@@ -58,6 +59,7 @@
+ 
+ #define DEFAULT_DELAY			1000
+ #define DEFAULT_SCALE			500
++#define DEFAULT_LOGARITHMIC		FALSE
+ #define DEFAULT_TOOLTIP_GRAPH_SPAN	60
+ #define DEFAULT_PREFERENCES_WIDTH	-1
+ #define DEFAULT_PREFERENCES_HEIGHT	400
+@@ -96,6 +98,17 @@ class LM:Applet from Panel:Applet
+       g_value_set_int(VAL, self->scale);
+     };
+ 
++  public gboolean logarithmic;	/* whether the panel scale is logarithmic */
++  property BOOLEAN logarithmic (default_value = DEFAULT_LOGARITHMIC, export)
++    set
++    {
++      panel_applet_gconf_set_bool(PANEL_APPLET(self), CONF_LOGARITHMIC, self->logarithmic = g_value_get_boolean(VAL), NULL);
++    }
++    get
++    {
++      g_value_set_boolean(VAL, self->logarithmic);
++    };
++
+   public int tooltip_graph_span; /* seconds */
+   property INT tooltip_graph_span (minimum = MIN_TOOLTIP_GRAPH_SPAN, default_value = DEFAULT_TOOLTIP_GRAPH_SPAN, export)
+     set
+diff --git a/src/lm-bar-graph.gob b/src/lm-bar-graph.gob
+index 22807d5..a8a18d8 100644
+--- a/src/lm-bar-graph.gob
++++ b/src/lm-bar-graph.gob
+@@ -19,6 +19,7 @@
+ 
+ %headertop{
+ #include <gtk/gtk.h>
++#include <math.h>
+ #include "lm-decls.h"
+ %}
+ 
+@@ -224,8 +225,20 @@ class LM:Bar:Graph from Gtk:Widget
+ 
+     if (base_host->alive)
+       {
+-	fraction = ((double) base_host->roundtrip_time / 1000) / selfp->applet->scale;
+-	fraction = CLAMP(fraction, 0.0, 1.0);
++      	if (selfp->applet->logarithmic)
++	  {
++	    // time == scale       results in fraction = 1
++	    // time == scale/10000 results in fraction = 0
++	    // The 4 comes from log10(10000) = 4
++	    // The factor 1000 is the unit conversion
++	    fraction = (log10((double) base_host->roundtrip_time / (1000 * selfp->applet->scale)) + 4)/4;
++	    fraction = CLAMP(fraction, 0.0, 1.0);
++	  }
++	else
++	  {
++	    fraction = ((double) base_host->roundtrip_time / 1000) / selfp->applet->scale;
++	    fraction = CLAMP(fraction, 0.0, 1.0);
++	  }
+       }
+     else
+       fraction = 1.0;
+diff --git a/src/lm-preferences-dialog.gob b/src/lm-preferences-dialog.gob
+index 394d936..9071ee2 100644
+--- a/src/lm-preferences-dialog.gob
++++ b/src/lm-preferences-dialog.gob
+@@ -82,6 +82,9 @@ class LM:Preferences:Dialog from LM:Dialog
+   private GtkWidget *delay_scale;
+   private GtkWidget *scale_label;
+   private GtkWidget *scale_scale;
++  private GtkWidget *scale_style_label;
++  private GtkWidget *scale_style_linear_radio;
++  private GtkWidget *scale_style_logarithmic_radio;
+   private GtkWidget *tooltip_graph_span_label;
+   private GtkWidget *tooltip_graph_span_scale;
+ 
+@@ -104,6 +107,9 @@ class LM:Preferences:Dialog from LM:Dialog
+ 				  "delay_scale", &selfp->delay_scale,
+ 				  "scale_label", &selfp->scale_label,
+ 				  "scale_scale", &selfp->scale_scale,
++				  "scale_style_label", &selfp->scale_style_label,
++				  "scale_style_linear_radio", &selfp->scale_style_linear_radio,
++				  "scale_style_logarithmic_radio", &selfp->scale_style_logarithmic_radio,
+ 				  "tooltip_graph_span_label", &selfp->tooltip_graph_span_label,
+ 				  "tooltip_graph_span_scale", &selfp->tooltip_graph_span_scale,
+ 				  NULL);
+@@ -135,6 +141,7 @@ class LM:Preferences:Dialog from LM:Dialog
+     size_group = gtk_size_group_new(GTK_SIZE_GROUP_HORIZONTAL);
+     gtk_size_group_add_widget(size_group, selfp->delay_label);
+     gtk_size_group_add_widget(size_group, selfp->scale_label);
++    gtk_size_group_add_widget(size_group, selfp->scale_style_label);
+     gtk_size_group_add_widget(size_group, selfp->tooltip_graph_span_label);
+     g_object_unref(size_group);
+ 
+@@ -150,6 +157,9 @@ class LM:Preferences:Dialog from LM:Dialog
+     lm_non_linear_range_setup_static(GTK_RANGE(selfp->scale_scale), scale_blocks, G_N_ELEMENTS(scale_blocks));
+     lm_non_linear_range_set_value(GTK_RANGE(selfp->scale_scale), selfp->applet->scale);
+ 
++    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(selfp->scale_style_linear_radio), !selfp->applet->logarithmic);
++    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(selfp->scale_style_logarithmic_radio), selfp->applet->logarithmic);
++
+     lm_non_linear_range_setup_static(GTK_RANGE(selfp->tooltip_graph_span_scale), lm_preferences_dialog_tooltip_graph_span_blocks, G_N_ELEMENTS(lm_preferences_dialog_tooltip_graph_span_blocks));
+     lm_non_linear_range_set_value(GTK_RANGE(selfp->tooltip_graph_span_scale), selfp->applet->tooltip_graph_span * 1000);
+ 
+@@ -281,6 +291,18 @@ class LM:Preferences:Dialog from LM:Dialog
+   {
+     lm_applet_set_scale(selfp->applet, lm_non_linear_range_get_value(range));
+   }
++  
++  protected void
++    scale_style_linear_toggled_h(self, GtkToggleButton *toggle)
++  {
++    lm_applet_set_logarithmic(selfp->applet, !gtk_toggle_button_get_active(toggle));
++  }
++
++  protected void
++    scale_style_logarithmic_toggled_h(self, GtkToggleButton *toggle)
++  {
++    lm_applet_set_logarithmic(selfp->applet, gtk_toggle_button_get_active(toggle));
++  }
+ 
+   protected void
+     tooltip_graph_span_scale_value_changed_h (self, GtkRange *range)
+diff --git a/ui/preferences-dialog.glade b/ui/preferences-dialog.glade
+index 471c8ab..6f4e753 100644
+--- a/ui/preferences-dialog.glade
++++ b/ui/preferences-dialog.glade
+@@ -309,6 +309,60 @@
+                           </packing>
+                         </child>
+                         <child>
++                          <widget class="GtkHBox" id="hbox5">
++                            <property name="visible">True</property>
++                            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                            <property name="spacing">12</property>
++                            <child>
++                              <widget class="GtkLabel" id="scale_style_label">
++                                <property name="visible">True</property>
++                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                                <property name="xalign">0</property>
++                                <property name="label" translatable="yes">_Scale style:</property>
++                                <property name="use_underline">True</property>
++                                <property name="mnemonic_widget">scale_style_radio_linear</property>
++                              </widget>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <widget class="GtkRadioButton" id="scale_style_linear_radio">
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                                <property name="label" translatable="yes">_Linear</property>
++                                <property name="use_underline">True</property>
++                                <signal name="toggled" handler="scale_style_linear_toggled_h"/>
++                              </widget>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">1</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <widget class="GtkRadioButton" id="scale_style_logarithmic_radio">
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                                <property name="group">scale_style_linear_radio</property>
++                                <property name="label" translatable="yes">_Logarithmic</property>
++                                <property name="use_underline">True</property>
++                                <signal name="toggled" handler="scale_style_logarithmic_toggled_h"/>
++                              </widget>
++                              <packing>
++                                <property name="position">2</property>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                              </packing>
++                            </child>
++                          </widget>
++                          <packing>
++                            <property name="position">2</property>
++                          </packing>
++                        </child><child>
+                           <widget class="GtkHBox" id="hbox3">
+                             <property name="visible">True</property>
+                             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-- 
+1.7.1
+

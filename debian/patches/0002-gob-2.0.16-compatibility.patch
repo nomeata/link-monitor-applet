@@ -1,4 +1,4 @@
-From 6112eb4d76c60d9b2cb0ba00da8cd6e1630ffb8d Mon Sep 17 00:00:00 2001
+From 6776d10ed5930784308b735d30106d62f3f79ed6 Mon Sep 17 00:00:00 2001
 From: Joachim Breitner <mail@joachim-breitner.de>
 Date: Sat, 3 Apr 2010 18:43:00 +0200
 Subject: gob 2.0.16 compatibility
@@ -75,5 +75,5 @@ index 6965713..6cc2b31 100644
    private GtkWidget *window;
    private TooltipsData *active_data;
 -- 
-1.7.0.3
+1.7.1
 
