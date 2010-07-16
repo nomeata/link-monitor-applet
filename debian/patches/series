@@ -1,4 +1,5 @@
 0001-disable-scrollkeeper-update.diff.patch
 0002-gob-2.0.16-compatibility.patch
 0003-Add-support-for-logarithmic-scale.patch
-0004-hide-icon-conditionally.patch
+0004-Also-implement-logarithmic-scale-in-line-chart.patch
+0005-hide-icon-conditionally.patch

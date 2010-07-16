@@ -1,4 +1,4 @@
-From e074aa033bdd718ebafa8dcc461a3704fe9032b6 Mon Sep 17 00:00:00 2001
+From 10e40aae491dc243448d3b43c7560aaed0bf786d Mon Sep 17 00:00:00 2001
 From: Joachim Breitner <mail@joachim-breitner.de>
 Date: Sat, 3 Apr 2010 18:34:51 +0200
 Subject: hide icon conditionally
