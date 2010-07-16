@@ -46,9 +46,15 @@
 #define X_MINOR_SUBDIVISIONS		12
 #define X_LABELS			(X_MAJOR_SUBDIVISIONS + 1)
 
-#define Y_MAJOR_SUBDIVISIONS		5
-#define Y_MINOR_SUBDIVISIONS		10
-#define Y_LABELS			(Y_MAJOR_SUBDIVISIONS + 1)
+#define Y_MAJOR_SUBDIVISIONS_LINEAR	5
+#define Y_MINOR_SUBDIVISIONS_LINEAR	10
+#define Y_LABELS_LINEAR			(Y_MAJOR_SUBDIVISIONS_LINEAR + 1)
+
+#define Y_MAJOR_SUBDIVISIONS_LOGARITHMIC	4
+#define Y_MINOR_SUBDIVISIONS_LOGARITHMIC	8
+#define Y_LABELS_LOGARITHMIC			(Y_MAJOR_SUBDIVISIONS_LOGARITHMIC + 1)
+
+#define Y_LABELS_MAX			Y_LABELS_LINEAR
 
 typedef struct
 {
@@ -84,7 +90,7 @@ class LM:Line:Graph from Gtk:Widget
   private unsigned int update_not_done_timeout_id;
 
   private LabelInfo x_labels[X_LABELS];
-  private LabelInfo y_labels[Y_LABELS];
+  private LabelInfo y_labels[Y_LABELS_MAX];
 
   /* total widget size */
   private int width;
@@ -197,7 +203,14 @@ class LM:Line:Graph from Gtk:Widget
       return;
 
     self_clear_labels_real(self, selfp->x_labels, X_LABELS);
-    self_clear_labels_real(self, selfp->y_labels, Y_LABELS);
+    if (selfp->applet->logarithmic)
+      {
+	self_clear_labels_real(self, selfp->y_labels, Y_LABELS_LOGARITHMIC);
+      }
+    else
+      {
+	self_clear_labels_real(self, selfp->y_labels, Y_LABELS_LINEAR);
+      }
   }
 
   private void
@@ -272,26 +285,52 @@ class LM:Line:Graph from Gtk:Widget
 
     /* create vertical labels */
 
-    step = (double) selfp->applet->scale / Y_MAJOR_SUBDIVISIONS;
-
-    /* display a suitable number of decimals */
-    step_usec = selfp->applet->scale * 1000 / Y_MAJOR_SUBDIVISIONS;
-    if (step_usec % 1000 == 0)
-      y_precision = 0;
-    else if (step_usec % 100 == 0)
-      y_precision = 1;
-    else
-      y_precision = 2;
-
-    for (i = 0; i < Y_LABELS; i++)
+    if (selfp->applet->logarithmic)
       {
-	LabelInfo *info = &selfp->y_labels[i];
-	char *str;
+	for (i = 0; i < Y_LABELS_LOGARITHMIC; i++)
+	  {
+	    LabelInfo *info = &selfp->y_labels[i];
+	    char *str;
 
-	str = g_strdup_printf(_("%.*f ms"), y_precision, step * (Y_MAJOR_SUBDIVISIONS - i));
-	info->layout = self_create_pango_layout(self, str, &y_label_width, &y_label_height);
-	g_free(str);
-      }
+	    step = (double) selfp->applet->scale * pow(10,-i);
+	    /* display a suitable number of decimals */
+	    step_usec = (double) selfp->applet->scale * 1000 * pow(10,-i);
+
+	    if (step_usec % 1000 == 0)
+	      y_precision = 0;
+	    else if (step_usec % 100 == 0)
+	      y_precision = 1;
+	    else
+	      y_precision = 2;
+
+	    str = g_strdup_printf(_("%.*f ms"), y_precision, step);
+	    info->layout = self_create_pango_layout(self, str, &y_label_width, &y_label_height);
+	    g_free(str);
+	  }
+	}
+      else
+      {
+	step = (double) selfp->applet->scale / Y_MAJOR_SUBDIVISIONS_LINEAR;
+
+	/* display a suitable number of decimals */
+	step_usec = selfp->applet->scale * 1000 / Y_MAJOR_SUBDIVISIONS_LINEAR;
+	if (step_usec % 1000 == 0)
+	  y_precision = 0;
+	else if (step_usec % 100 == 0)
+	  y_precision = 1;
+	else
+	  y_precision = 2;
+
+	for (i = 0; i < Y_LABELS_LINEAR; i++)
+	  {
+	    LabelInfo *info = &selfp->y_labels[i];
+	    char *str;
+
+	    str = g_strdup_printf(_("%.*f ms"), y_precision, step * (Y_MAJOR_SUBDIVISIONS_LINEAR - i));
+	    info->layout = self_create_pango_layout(self, str, &y_label_width, &y_label_height);
+	    g_free(str);
+	  }
+	}
 
     /* compute margins, graph size and position */
 
@@ -324,17 +363,33 @@ class LM:Line:Graph from Gtk:Widget
 
     /* compute vertical labels positions */
 
-    step_pixels = LM_LINE_GRAPH_HEIGHT / Y_MAJOR_SUBDIVISIONS;
+    if (selfp->applet->logarithmic) {
+	step_pixels = LM_LINE_GRAPH_HEIGHT / Y_MAJOR_SUBDIVISIONS_LOGARITHMIC;
 
-    for (i = 0; i < Y_LABELS; i++)
+	for (i = 0; i < Y_LABELS_LOGARITHMIC; i++)
+	  {
+	    LabelInfo *info = &selfp->y_labels[i];
+
+	    pango_layout_get_pixel_extents(info->layout, NULL, &rect);
+
+	    info->x = selfp->graph_x - GRAPH_MARGIN - rect.width;
+	    info->y = selfp->graph_y + step_pixels * i - rect.height / 2;
+	  }
+      }	  
+    else
       {
-	LabelInfo *info = &selfp->y_labels[i];
+	step_pixels = LM_LINE_GRAPH_HEIGHT / Y_MAJOR_SUBDIVISIONS_LINEAR;
 
-	pango_layout_get_pixel_extents(info->layout, NULL, &rect);
+	for (i = 0; i < Y_LABELS_LINEAR; i++)
+	  {
+	    LabelInfo *info = &selfp->y_labels[i];
 
-	info->x = selfp->graph_x - GRAPH_MARGIN - rect.width;
-	info->y = selfp->graph_y + step_pixels * i - rect.height / 2;
-      }
+	    pango_layout_get_pixel_extents(info->layout, NULL, &rect);
+
+	    info->x = selfp->graph_x - GRAPH_MARGIN - rect.width;
+	    info->y = selfp->graph_y + step_pixels * i - rect.height / 2;
+	  }
+      }	  
 
     /* update the time labels when the second will change */
 
@@ -475,7 +530,14 @@ class LM:Line:Graph from Gtk:Widget
     draw_labels (self, cairo_t *cr, int x, int y)
   {
     self_draw_labels_real(self, selfp->x_labels, X_LABELS, cr, x, y);
-    self_draw_labels_real(self, selfp->y_labels, Y_LABELS, cr, x, y);
+    if (selfp->applet->logarithmic)
+      {
+	self_draw_labels_real(self, selfp->y_labels, Y_LABELS_LOGARITHMIC, cr, x, y);
+      }
+    else
+      {
+	self_draw_labels_real(self, selfp->y_labels, Y_LABELS_LINEAR, cr, x, y);
+      }
   }
 
   private void
@@ -560,8 +622,16 @@ class LM:Line:Graph from Gtk:Widget
 
     /* vertical */
 
-    minor_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MINOR_SUBDIVISIONS;
-    major_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MAJOR_SUBDIVISIONS;
+    if (selfp->applet->logarithmic)
+      {
+	minor_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MINOR_SUBDIVISIONS_LOGARITHMIC; 
+	major_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MAJOR_SUBDIVISIONS_LOGARITHMIC;
+      }
+    else
+      {
+	minor_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MINOR_SUBDIVISIONS_LINEAR; 
+	major_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MAJOR_SUBDIVISIONS_LINEAR;
+      }
 
     line_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH - 1;
     graph_end = graph_area_y + LM_LINE_GRAPH_AREA_HEIGHT;
@@ -623,7 +693,14 @@ class LM:Line:Graph from Gtk:Widget
 	age = now - dp->timestamp;
 
 	x = (double) (span - age) / span * LM_LINE_GRAPH_AREA_WIDTH;
-	y = (double) LM_LINE_GRAPH_AREA_HEIGHT - ((double) dp->roundtrip_time / scale * LM_LINE_GRAPH_AREA_HEIGHT);
+	if (selfp->applet->logarithmic)
+	  {
+	    y = (double) LM_LINE_GRAPH_AREA_HEIGHT - (log10((double) dp->roundtrip_time / scale) + 4)/4 * LM_LINE_GRAPH_AREA_HEIGHT;
+	  }
+        else
+	  {
+	    y = (double) LM_LINE_GRAPH_AREA_HEIGHT - ((double) dp->roundtrip_time / scale * LM_LINE_GRAPH_AREA_HEIGHT);
+	  }
 
 	/*
 	 * Constrain high pings inside the graph, since no plot means
