@@ -2,6 +2,7 @@ link-monitor-applet (3.0-4) UNRELEASED; urgency=low
 
   * debian/patches/0003-Add-support-for-logarithmic-scale.patch 
     - Optionally use logarithmic scale in the panel bar, LP: #591644
+  * Bump standards version, no change
 
  -- Joachim Breitner <nomeata@debian.org>  Thu, 15 Jul 2010 22:16:01 +0200
 
