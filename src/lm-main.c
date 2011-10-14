@@ -23,7 +23,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <glib/gi18n.h>
-#include <gnome.h>
+#include <errno.h>
 #include "lm-applet.h"
 #include "lm-shell.h"
 #include "lm-util.h"
@@ -88,20 +88,37 @@ main (int argc, char **argv)
     g_critical("multi-threading is not available");
   gdk_threads_init();
 
-  gnome_program_init(PACKAGE,
-		     VERSION,
-		     LIBGNOMEUI_MODULE,
-		     argc,
-		     argv,
-		     /* translators: header capitalization */
-		     GNOME_PARAM_HUMAN_READABLE_NAME, _("Link Monitor Applet"),
-		     GNOME_CLIENT_PARAM_SM_CONNECT, FALSE,
-		     GNOME_PROGRAM_STANDARD_PROPERTIES,
-		     NULL);
+  gtk_init(&argc,&argv);
+  // GTK3TODO: needed?
+  //  gnome_program_init(PACKAGE,
+  //		     VERSION,
+  //		     LIBGNOMEUI_MODULE,
+  //		     argc,
+  //		     argv,
+  //		     /* translators: header capitalization */
+  //		     GNOME_PARAM_HUMAN_READABLE_NAME, _("Link Monitor Applet"),
+  //		     GNOME_CLIENT_PARAM_SM_CONNECT, FALSE,
+  //		     GNOME_PROGRAM_STANDARD_PROPERTIES,
+  //		     NULL);
 
   icon = lm_pixbuf_new(GNOMEPIXMAPSDIR G_DIR_SEPARATOR_S "link-monitor-applet.png");
   gtk_window_set_default_icon(icon);
   g_object_unref(icon);
+
+  // This code loads the application specific CSS file used for the charts and
+  // icons (frame and white background)
+  GtkCssProvider *css_provider = gtk_css_provider_new();
+  GError *error = NULL;
+  if (!gtk_css_provider_load_from_path(css_provider, PKGDATADIR G_DIR_SEPARATOR_S "lm-style.css", &error)) {
+    fprintf(stderr, "Link-Monitor-Applet: Unable to load CSS data \"%s\": %s\n",
+          PKGDATADIR G_DIR_SEPARATOR_S "lm-style.css", error->message);
+    g_error_free (error);
+  }
+  gtk_style_context_add_provider_for_screen(
+    gdk_screen_get_default(),
+    css_provider,
+    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+
 
   lm_shell_new(sockets);
 

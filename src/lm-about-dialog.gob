@@ -19,11 +19,11 @@
 
 %headertop{
 #include <gtk/gtk.h>
+#include <gdk/gdk.h>
 %}
 
 %{
 #include <glib/gi18n.h>
-#include <gnome.h>
 #include "lm-util.h"
 %}
 
@@ -31,8 +31,9 @@ class LM:About:Dialog from Gtk:About:Dialog
 {
   class_init (class)
   {
-    gtk_about_dialog_set_email_hook(self_activate_link_cb, "mailto:", NULL);
-    gtk_about_dialog_set_url_hook(self_activate_link_cb, NULL, NULL);
+    // GTK3TODO: Is this still required?
+    // gtk_about_dialog_set_email_hook(self_activate_link_cb, "mailto:", NULL);
+    // gtk_about_dialog_set_url_hook(self_activate_link_cb, NULL, NULL);
   }
 
   init (self)
@@ -73,7 +74,7 @@ class LM:About:Dialog from Gtk:About:Dialog
     char *url;
 
     url = prefix ? g_strconcat(prefix, link_, NULL) : g_strdup(link_);
-    if (! gnome_url_show(url, &err))
+    if (! gtk_show_uri(NULL, url, GDK_CURRENT_TIME, &err))
       {
         lm_show_error_dialog(GTK_WINDOW(about), _("Unable to open link"), "%s", err->message);
 	g_error_free(err);

@@ -24,8 +24,6 @@
 #include <math.h>
 #include <errno.h>
 #include <glib/gi18n.h>
-#include <gnome.h>
-#include <glade/glade.h>
 #include "lm-util.h"
 
 typedef struct
@@ -97,49 +95,52 @@ lm_g_object_array_free (GPtrArray *array)
   g_ptr_array_free(array, TRUE);
 }
 
-static GladeXML *
-lm_glade_xml_new (const char *filename, const char *root, const char *domain)
+static GtkBuilder *
+lm_glade_xml_new (const char *filename)
 {
-  GladeXML *xml;
 
   g_return_val_if_fail(filename != NULL, NULL);
 
-  xml = glade_xml_new(filename, root, domain);
-  if (! xml)
-    lm_show_fatal_error_dialog(NULL, "Unable to load interface \"%s\".", filename);
+  GError* error = NULL;
+  GtkBuilder* builder = gtk_builder_new ();
+  if (!gtk_builder_add_from_file (builder, filename, &error))
+    {
+      lm_show_fatal_error_dialog(NULL, "Unable to load interface \"%s\": %s",
+	  filename, error->message);
+      g_error_free (error);
+    }
 
-  return xml;
+  return builder;
 }
 
 static GtkWidget *
-lm_glade_xml_get_widget (GladeXML *xml, const char *widget_name)
+lm_glade_xml_get_widget (GtkBuilder *builder, const char *widget_name)
 {
   GtkWidget *widget;
 
-  g_return_val_if_fail(GLADE_IS_XML(xml), NULL);
+  g_return_val_if_fail(GTK_IS_BUILDER(builder), NULL);
   g_return_val_if_fail(widget_name != NULL, NULL);
 
-  widget = glade_xml_get_widget(xml, widget_name);
+  widget = GTK_WIDGET(gtk_builder_get_object(builder, widget_name));
   if (! widget)
-    lm_show_fatal_error_dialog(NULL, "Widget \"%s\" not found in interface \"%s\".", widget_name, xml->filename);
+    lm_show_fatal_error_dialog(NULL, "Widget \"%s\" not found in interface definition.", widget_name);
 
   return widget;
 }
 
 static void
-create_interface_connect_cb (const char *handler_name,
+create_interface_connect_cb (GtkBuilder *builder,
 			     GObject *object,
 			     const char *signal_name,
-			     const char *signal_data,
+			     const char *handler_name,
 			     GObject *connect_object,
-			     gboolean after,
+			     GConnectFlags flags,
 			     gpointer user_data)
 {
   static GModule *module = NULL;
   ContainerCreateInterfaceConnectInfo *info = user_data;
   char *cb_name;
   GCallback cb;
-  GConnectFlags flags;
 
   if (! module)
     {
@@ -153,21 +154,18 @@ create_interface_connect_cb (const char *handler_name,
     lm_show_fatal_error_dialog(NULL, "Signal handler \"%s\" not found.", cb_name);
   g_free(cb_name);
 
-  flags = G_CONNECT_SWAPPED;
-  if (after)
-    flags |= G_CONNECT_AFTER;
-
+  flags |= G_CONNECT_SWAPPED;
   g_signal_connect_data(object, signal_name, cb, info->container, NULL, flags);
 }
 
 void
 lm_container_create_interface (GtkContainer *container,
 			       const char *filename,
-			       const char *child_name,
+	                       const char *child_name,
 			       const char *callback_prefix,
 			       ...)
 {
-  GladeXML *xml;
+  GtkBuilder *builder;
   GtkWidget *child;
   ContainerCreateInterfaceConnectInfo info;
   va_list args;
@@ -178,17 +176,22 @@ lm_container_create_interface (GtkContainer *container,
   g_return_if_fail(child_name != NULL);
   g_return_if_fail(callback_prefix != NULL);
 
-  xml = lm_glade_xml_new(filename, child_name, NULL);
-  child = lm_glade_xml_get_widget(xml, child_name);
+  builder = lm_glade_xml_new(filename);
+  child = lm_glade_xml_get_widget(builder, child_name);
 
-  if (GTK_IS_DIALOG(container))
-    gtk_box_pack_start(GTK_BOX(GTK_DIALOG(container)->vbox), child, TRUE, TRUE, 0);
-  else
+  gtk_widget_unparent(child);
+
+  if (GTK_IS_DIALOG(container)) {
+    GtkWidget *box = gtk_dialog_get_content_area(GTK_DIALOG(container));
+    gtk_box_pack_start(GTK_BOX(box), child, TRUE, TRUE, 0);
+  } else {
     gtk_container_add(container, child);
+  }
 
   info.container = container;
   info.callback_prefix = callback_prefix;
-  glade_xml_signal_autoconnect_full(xml, create_interface_connect_cb, &info);
+  gtk_builder_connect_signals_full (builder, create_interface_connect_cb, &info);
+
 
   va_start(args, callback_prefix);
   while ((widget_name = va_arg(args, const char *)))
@@ -198,11 +201,11 @@ lm_container_create_interface (GtkContainer *container,
       widget = va_arg(args, GtkWidget **);
       g_return_if_fail(widget != NULL);
 
-      *widget = lm_glade_xml_get_widget(xml, widget_name);
+      *widget = lm_glade_xml_get_widget(builder, widget_name);
     }
   va_end(args);
 
-  g_object_unref(xml);
+  g_object_unref(builder);
 }
 
 GdkPixbuf *
@@ -241,8 +244,7 @@ void
 lm_show_help (const char *link_id)
 {
   GError *err = NULL;
-
-  if (! gnome_help_display("link-monitor-applet.xml", link_id, &err))
+  if (! g_app_info_launch_default_for_uri ("ghelp:link-monitor-applet", NULL, &err))
     {
       lm_show_error_dialog(NULL, _("Unable to display help"), "%s", err->message);
       g_error_free(err);
@@ -501,7 +503,7 @@ lm_g_object_connect (gpointer object,
        *     notify::host-count signal handler) crashes because the
        *     preferences dialog was already partially destroyed
        */
-      if (GTK_IS_OBJECT(object))
+      if (GTK_IS_WIDGET(object))
 	g_signal_connect_swapped(object, "destroy", G_CALLBACK(object_connect_destroy_cb), handler);
       else
 	g_object_weak_ref(object, (GWeakNotify) object_connect_destroy_cb, handler);
@@ -631,7 +633,7 @@ lm_widget_get_parent_window (GtkWidget *widget)
 
   toplevel = gtk_widget_get_toplevel(widget);
 
-  return GTK_WIDGET_TOPLEVEL(toplevel) ? GTK_WINDOW(toplevel) : NULL;
+  return gtk_widget_is_toplevel(toplevel) ? GTK_WINDOW(toplevel) : NULL;
 }
 
 void
@@ -657,10 +659,14 @@ lm_widget_get_origin (GtkWidget *widget,
   g_return_if_fail(xalign >= 0.0 && xalign <= 1.0);
   g_return_if_fail(yalign >= 0.0 && yalign <= 1.0);
 
+  gint natural_width, natural_height, minimal_width, minimal_height;
+  gtk_widget_get_preferred_width(widget, &natural_width, &natural_height);
+  gtk_widget_get_preferred_height(widget, &natural_height, &natural_height);
+
   if (x)
-    *x = floor(widget->allocation.x + ((widget->allocation.width - widget->requisition.width) * xalign));
+    *x = floor((natural_width - gtk_widget_get_allocated_width(widget)) * xalign);
   if (y)
-    *y = floor(widget->allocation.y + ((widget->allocation.height - widget->requisition.height) * yalign));
+    *y = floor((natural_height  - gtk_widget_get_allocated_height(widget)) * yalign);
 }
 
 void
@@ -672,11 +678,11 @@ lm_window_present_from_event (GtkWindow *window)
 }
 
 void
-lm_g_value_get_mandatory_color (const GValue *value, GdkColor *color)
+lm_g_value_get_mandatory_color (const GValue *value, GdkRGBA *color)
 {
-  GdkColor *p;
+  GdkRGBA *p;
 
-  g_return_if_fail(G_VALUE_HOLDS(value, GDK_TYPE_COLOR));
+  g_return_if_fail(G_VALUE_HOLDS(value, GDK_TYPE_RGBA));
   g_return_if_fail(color != NULL);
 
   p = g_value_get_boxed(value);
@@ -746,18 +752,17 @@ lm_tree_row_reference_compare (GtkTreeRowReference *a, GtkTreeRowReference *b)
 }
 
 void
-lm_gdk_color_to_cairo_color (const GdkColor *in, LMCairoColor *out)
+lm_cairo_set_source_color (cairo_t *cr, const GdkColor *color)
 {
-  g_return_if_fail(in != NULL);
-  g_return_if_fail(out != NULL);
+  g_return_if_fail(cr != NULL);
+  g_return_if_fail(color != NULL);
 
-  out->red = (double) in->red / 65535;
-  out->green = (double) in->green / 65535;
-  out->blue = (double) in->blue / 65535;
+  cairo_set_source_rgb(cr, color->red/65535.0, color->green/65535.0, color->blue/65535.0);
 }
 
+
 void
-lm_cairo_set_source_color (cairo_t *cr, const LMCairoColor *color)
+lm_cairo_set_source_rgba (cairo_t *cr, const GdkRGBA *color)
 {
   g_return_if_fail(cr != NULL);
   g_return_if_fail(color != NULL);
@@ -766,7 +771,7 @@ lm_cairo_set_source_color (cairo_t *cr, const LMCairoColor *color)
 }
 
 static void
-lm_cairo_color_to_hls_color (const LMCairoColor *in, LMHLSColor *out)
+lm_cairo_color_to_hls_color (const GdkRGBA *in, LMHLSColor *out)
 {
   double min;
   double max;
@@ -831,7 +836,7 @@ get_channel (double hue, double m1, double m2)
 }
 
 static void
-lm_hls_color_to_cairo_color (const LMHLSColor *in, LMCairoColor *out)
+lm_hls_color_to_cairo_color (const LMHLSColor *in, GdkRGBA *out)
 {
   g_return_if_fail(in != NULL);
   g_return_if_fail(out != NULL);
@@ -862,7 +867,7 @@ lm_hls_color_to_cairo_color (const LMHLSColor *in, LMCairoColor *out)
 
 /* based on ul_shade() in Ubuntulooks */
 void
-lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k)
+lm_cairo_color_shade (const GdkRGBA *in, GdkRGBA *out, float k)
 {
   LMHLSColor hls;
 
@@ -885,21 +890,21 @@ lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k)
  * appropriate.
  */
 void
-lm_paint_box (GdkWindow *window,
+lm_paint_box (cairo_t *cr,
 	      GtkStateType state_type,
 	      GtkShadowType shadow_type,
-	      GdkRectangle *area,
 	      GtkWidget *widget,
-	      GdkGC *background_gc,
 	      int x,
 	      int y,
 	      int width,
 	      int height)
 {
-  g_return_if_fail(GDK_IS_WINDOW(window));
   g_return_if_fail(GTK_IS_WIDGET(widget));
-  g_return_if_fail(GDK_IS_GC(background_gc));
 
+  // GTK3TODO
+  cairo_rectangle(cr,x+1,y+1, width-2, height-2);
+  cairo_fill(cr);
+  /*
   gdk_draw_rectangle(window,
 		     background_gc,
 		     TRUE,
@@ -907,12 +912,12 @@ lm_paint_box (GdkWindow *window,
 		     y + 1,
 		     width - 2,
 		     height - 2);
+  */	
 
-  gtk_paint_shadow(widget->style,
-		   window,
+  gtk_paint_shadow(gtk_widget_get_style(widget),
+		   cr,
 		   state_type,
 		   shadow_type,
-		   area,
 		   widget,
 		   NULL,
 		   x,
@@ -925,36 +930,13 @@ lm_paint_box (GdkWindow *window,
  * Like gdk_draw_pixbuf(), but respects the @area clip rectangle.
  */
 void
-lm_paint_pixbuf (GdkWindow *window,
+lm_paint_pixbuf (cairo_t *cr,
 		 GdkPixbuf *pixbuf,
-		 GdkRectangle *area,
 		 int x,
 		 int y)
 {
-  GdkRectangle image_area;
-
-  g_return_if_fail(GDK_IS_WINDOW(window));
   g_return_if_fail(GDK_IS_PIXBUF(pixbuf));
-  g_return_if_fail(area != NULL);
 
-  image_area.x = x;
-  image_area.y = y;
-  image_area.width = gdk_pixbuf_get_width(pixbuf);
-  image_area.height = gdk_pixbuf_get_height(pixbuf);
-
-  if (! gdk_rectangle_intersect(area, &image_area, &image_area))
-    return;
-
-  gdk_draw_pixbuf(window,
-		  NULL,
-		  pixbuf,
-		  image_area.x - x,
-		  image_area.y - y,
-		  image_area.x,
-		  image_area.y,
-		  image_area.width,
-		  image_area.height,
-		  GDK_RGB_DITHER_NORMAL,
-		  0,
-		  0);
+  gdk_cairo_set_source_pixbuf(cr, pixbuf, x, y);
+  cairo_paint(cr);
 }
