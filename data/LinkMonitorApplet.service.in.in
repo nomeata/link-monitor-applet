@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=org.gnome.panel.applet.LinkMonitorApplet_Factory
+Exec=@libexecdir@/link-monitor-applet
+

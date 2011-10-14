@@ -89,6 +89,10 @@ void jb_group_add_gconf_schemas (JBGroup *self, const char *filename);
 
 void jb_group_add_bonobo_server (JBGroup *self, const char *filename);
 
+void jb_group_add_dbus_service (JBGroup *self, const char *filename);
+
+void jb_group_add_panel_applet (JBGroup *self, const char *filename);
+
 void jb_group_add_translations (JBGroup *self, const char *languages);
 
 #endif /* _JB_GROUP_H */
