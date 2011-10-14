@@ -48,7 +48,7 @@ typedef struct
 #include "lm-preferences-dialog.h"
 %}
 
-class LM:Data:Set
+class LM:Data:Set from G:Object
 {
   private LMApplet *applet;
   property POINTER applet (link, flags = CONSTRUCT_ONLY);
