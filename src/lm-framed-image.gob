@@ -44,10 +44,10 @@ class LM:Framed:Image from Gtk:Widget
 
   init (self)
   {
-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);    
   }
 
-  override (Gtk:Widget) void
+  private void
     size_request (GtkWidget *widget, GtkRequisition *requisition)
   {
     Self *self = SELF(widget);
@@ -64,33 +64,48 @@ class LM:Framed:Image from Gtk:Widget
       }
   }
 
+  override (Gtk:Widget) void
+    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_width = *natural_width = requisition.width;
+  }
+
+  override (Gtk:Widget) void
+    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_height = *natural_height = requisition.height;
+  }
+
+
   override (Gtk:Widget) gboolean
-    expose_event (GtkWidget *widget, GdkEventExpose *event)
+    draw (GtkWidget *widget, cairo_t *cr)
   {
     Self *self = SELF(widget);
     int x;
     int y;
 
-    if (! GTK_WIDGET_DRAWABLE(widget) || ! selfp->pixbuf)
+    if (! selfp->pixbuf)
       return FALSE;
 
     lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
 
-    gtk_paint_shadow(widget->style,
-		     widget->window,
-		     GTK_WIDGET_STATE(widget),
-		     GTK_SHADOW_IN,
-		     &event->area,
-		     widget,
-		     NULL,
+    gtk_render_frame(gtk_widget_get_style_context(widget),
+		     cr,
 		     x,
 		     y,
-		     widget->requisition.width,
-		     widget->requisition.height);
+		     gtk_widget_get_allocated_width(widget),
+		     gtk_widget_get_allocated_height(widget));
 
-    lm_paint_pixbuf(widget->window,
+    lm_paint_pixbuf(cr,
 		    selfp->pixbuf,
-		    &event->area,
 		    x + LM_BOX_BORDER_WIDTH,
 		    y + LM_BOX_BORDER_WIDTH);
 

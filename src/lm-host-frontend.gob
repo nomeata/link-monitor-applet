@@ -28,7 +28,7 @@
 typedef struct
 {
   char		*name;
-  GdkColor	color;
+  GdkRGBA	color;
 } LMHostFrontendConfiguration;
 %}
 
@@ -51,11 +51,11 @@ typedef struct
 
 class LM:Host:Frontend from LM:Host
 {
-  public GdkColor color;
+  public GdkRGBA color;
   property BOXED color (export,
 			flags = CONSTRUCT,
-			boxed_type = Gdk:Color,
-			type = const GdkColor *)
+			boxed_type = Gdk:RGBA,
+			type = const GdkRGBA *)
     set
     {
       lm_g_value_get_mandatory_color(VAL, &self->color);
@@ -328,9 +328,9 @@ class LM:Host:Frontend from LM:Host
   public LMHostFrontend *
     new (LM:Applet *applet (check null type),
 	 const char *name (check null),
-	 const GdkColor *color)
+	 const GdkRGBA *color)
   {
-    GdkColor auto_color;
+    GdkRGBA auto_color;
 
     if (! color)
       {
@@ -386,17 +386,17 @@ class LM:Host:Frontend from LM:Host
 	g_string_append_c(str, host->name[i]);
 
     g_string_append_printf(str, "|#%02X%02X%02X",
-			   self->color.red / 256,
-			   self->color.green / 256,
-			   self->color.blue / 256);
+			   (int)(self->color.red * 255),
+			   (int)(self->color.green * 255),
+			   (int)(self->color.blue * 255));
 
     return g_string_free(str, FALSE);
   }
 
-  private guint16
+  private gdouble
     parse_color_channel (const char *str)
   {
-    return (g_ascii_xdigit_value(str[0]) * 16 + g_ascii_xdigit_value(str[1])) * 256;
+    return (g_ascii_xdigit_value(str[0]) * 16 + g_ascii_xdigit_value(str[1])) / 255.0;
   }
 
   public LMHostFrontend *
@@ -429,7 +429,7 @@ class LM:Host:Frontend from LM:Host
 
     if (color_str)
       {
-	GdkColor color;
+	GdkRGBA color;
 
 	if (color_str[0] != '#')
 	  goto end;
@@ -441,7 +441,7 @@ class LM:Host:Frontend from LM:Host
 	if (color_str[7] != 0)
 	  goto end;
 
-	color.pixel = 0;
+	color.alpha = 1.0;
 	color.red = self_parse_color_channel(&color_str[1]);
 	color.green = self_parse_color_channel(&color_str[3]);
 	color.blue = self_parse_color_channel(&color_str[5]);

@@ -94,8 +94,6 @@ class LM:Line:Graph from Gtk:Widget
   private int graph_x;
   private int graph_y;
 
-  private GdkGC *subdivision_gc unrefwith g_object_unref;
-
   class_init (class)
   {
     GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(class);
@@ -104,13 +102,13 @@ class LM:Line:Graph from Gtk:Widget
 					    g_param_spec_boxed("minor-subdivision-color",
 							       NULL,
 							       NULL,
-							       GDK_TYPE_COLOR,
+							       GDK_TYPE_RGBA,
 							       G_PARAM_READABLE));
     gtk_widget_class_install_style_property(widget_class,
 					    g_param_spec_boxed("major-subdivision-color",
 							       NULL,
 							       NULL,
-							       GDK_TYPE_COLOR,
+							       GDK_TYPE_RGBA,
 							       G_PARAM_READABLE));
   }
 
@@ -118,7 +116,7 @@ class LM:Line:Graph from Gtk:Widget
   {
     int i;
 
-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);
 
     g_object_connect(self,
 		     "signal::style-set", self_clear_labels_and_queue_resize, self,
@@ -161,7 +159,7 @@ class LM:Line:Graph from Gtk:Widget
     self_clear_labels_and_queue_resize(self);
   }
 
-  override (Gtk:Widget) void
+  private void
     size_request (GtkWidget *widget, GtkRequisition *requisition)
   {
     Self *self = SELF(widget);
@@ -170,6 +168,26 @@ class LM:Line:Graph from Gtk:Widget
 
     requisition->width = selfp->width;
     requisition->height = selfp->height;
+  }
+
+  override (Gtk:Widget) void
+    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_width = *natural_width = requisition.width;
+  }
+
+  override (Gtk:Widget) void
+    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_height = *natural_height = requisition.height;
   }
 
   private void
@@ -353,7 +371,7 @@ class LM:Line:Graph from Gtk:Widget
   }
 
   override (Gtk:Widget) gboolean
-    expose_event (GtkWidget *widget, GdkEventExpose *event)
+    draw (GtkWidget *widget, cairo_t *cr)
   {
     Self *self = SELF(widget);
     int x;
@@ -363,26 +381,21 @@ class LM:Line:Graph from Gtk:Widget
     int graph_area_x;
     int graph_area_y;
 
-    if (! GTK_WIDGET_DRAWABLE(widget))
-      return FALSE;
-
     lm_source_clear(&selfp->update_not_done_timeout_id);
 
     self_ensure_labels(self);
 
     lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
 
-    self_draw_labels(self, event, x, y);
+    self_draw_labels(self, cr, x, y);
 
     graph_x = x + selfp->graph_x;
     graph_y = y + selfp->graph_y;
 
-    lm_paint_box(widget->window,
-		 GTK_WIDGET_STATE(widget),
+    lm_paint_box(cr,
+		 gtk_widget_get_state(widget),
 		 GTK_SHADOW_IN,
-		 &event->area,
 		 widget,
-		 widget->style->base_gc[GTK_WIDGET_STATE(widget)],
 		 graph_x,
 		 graph_y,
 		 LM_LINE_GRAPH_WIDTH,
@@ -391,17 +404,14 @@ class LM:Line:Graph from Gtk:Widget
     graph_area_x = graph_x + LM_BOX_BORDER_WIDTH;
     graph_area_y = graph_y + LM_BOX_BORDER_WIDTH;
 
-    self_draw_subdivisions(self, graph_area_x, graph_area_y);
+    self_draw_subdivisions(self, cr, graph_area_x, graph_area_y);
 
     if (selfp->applet->hosts->len != 0)
       {
-	cairo_t *cr;
 	LMTimeSpan now;
 	LMTimeSpan scale;
 	LMTimeSpan span;
 	int i;
-
-	cr = gdk_cairo_create(widget->window);
 
 	/*
 	 * Setup a Cairo clip rectangle of size width,height at
@@ -439,8 +449,6 @@ class LM:Line:Graph from Gtk:Widget
 	    self_plot_host(self, host, cr, now, scale, span);
 	  }
 
-	cairo_destroy(cr);
-
 	if (! selfp->update_timeout_id)
 	  {
 	    int timeout;
@@ -464,17 +472,17 @@ class LM:Line:Graph from Gtk:Widget
   }
 
   private void
-    draw_labels (self, GdkEventExpose *event, int x, int y)
+    draw_labels (self, cairo_t *cr, int x, int y)
   {
-    self_draw_labels_real(self, selfp->x_labels, X_LABELS, event, x, y);
-    self_draw_labels_real(self, selfp->y_labels, Y_LABELS, event, x, y);
+    self_draw_labels_real(self, selfp->x_labels, X_LABELS, cr, x, y);
+    self_draw_labels_real(self, selfp->y_labels, Y_LABELS, cr, x, y);
   }
 
   private void
     draw_labels_real (self,
 		      const LabelInfo *infos,
 		      int num_infos,
-		      GdkEventExpose *event (check null),
+		      cairo_t *cr (check null),
 		      int x,
 		      int y)
   {
@@ -485,13 +493,8 @@ class LM:Line:Graph from Gtk:Widget
       {
 	const LabelInfo *info = &infos[i];
 
-	gtk_paint_layout(widget->style,
-			 widget->window,
-			 GTK_WIDGET_STATE(widget),
-			 FALSE,
-			 &event->area,
-			 widget,
-			 NULL,
+	gtk_render_layout(gtk_widget_get_style_context(widget),
+			 cr,
 			 x + info->x,
 			 y + info->y,
 			 info->layout);
@@ -499,21 +502,18 @@ class LM:Line:Graph from Gtk:Widget
   }
 
   private void
-    draw_subdivisions (self, int graph_area_x, int graph_area_y)
+    draw_subdivisions (self, cairo_t *cr, int graph_area_x, int graph_area_y)
   {
     GtkWidget *widget = GTK_WIDGET(self);
-    GdkColor minor_color = { 0, 0xe000, 0xe000, 0xe000 };
-    GdkColor major_color = { 0, 0xff00, 0xcc00, 0xcc00 };
-    GdkColor *custom_minor_color;
-    GdkColor *custom_major_color;
+    GdkRGBA minor_color = { 0, 0xe000, 0xe000, 0xe000 };
+    GdkRGBA major_color = { 0, 0xff00, 0xcc00, 0xcc00 };
+    GdkRGBA *custom_minor_color;
+    GdkRGBA *custom_major_color;
     int minor_subdivision;
     int major_subdivision;
     int line_end;
     int graph_end;
     int line;
-
-    if (! selfp->subdivision_gc)
-      selfp->subdivision_gc = gdk_gc_new(widget->window);
 
     gtk_widget_style_get(widget,
 			 "minor-subdivision-color", &custom_minor_color,
@@ -523,12 +523,12 @@ class LM:Line:Graph from Gtk:Widget
     if (custom_minor_color)
       {
 	minor_color = *custom_minor_color;
-	gdk_color_free(custom_minor_color);
+	gdk_rgba_free(custom_minor_color);
       }
     if (custom_major_color)
       {
 	major_color = *custom_major_color;
-	gdk_color_free(custom_major_color);
+	gdk_rgba_free(custom_major_color);
       }
 
     /* horizontal */
@@ -539,19 +539,24 @@ class LM:Line:Graph from Gtk:Widget
     line_end = graph_area_y + LM_LINE_GRAPH_AREA_HEIGHT - 1;
     graph_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH;
 
-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &minor_color);
+    lm_cairo_set_source_rgba(cr, &minor_color);
 
     for (line = minor_subdivision; line < LM_LINE_GRAPH_AREA_WIDTH; line += minor_subdivision)
       if (line % major_subdivision != 0)
 	{
 	  int x = graph_area_x + line;
-	  gdk_draw_line(widget->window, selfp->subdivision_gc, x, graph_area_y, x, line_end);
+          cairo_move_to(cr, x, graph_area_y);
+          cairo_line_to(cr, x, line_end);
+          cairo_stroke(cr);
 	}
 
-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &major_color);
+    lm_cairo_set_source_rgba(cr, &major_color);
 
-    for (line = graph_area_x + major_subdivision; line < graph_end; line += major_subdivision)
-      gdk_draw_line(widget->window, selfp->subdivision_gc, line, graph_area_y, line, line_end);
+    for (line = graph_area_x + major_subdivision; line < graph_end; line += major_subdivision) {
+      cairo_move_to(cr, line, graph_area_y);
+      cairo_line_to(cr, line, line_end);
+      cairo_stroke(cr);
+    }
 
     /* vertical */
 
@@ -561,19 +566,24 @@ class LM:Line:Graph from Gtk:Widget
     line_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH - 1;
     graph_end = graph_area_y + LM_LINE_GRAPH_AREA_HEIGHT;
 
-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &minor_color);
+    lm_cairo_set_source_rgba(cr, &minor_color);
 
     for (line = minor_subdivision; line < LM_LINE_GRAPH_AREA_HEIGHT; line += minor_subdivision)
       if (line % major_subdivision != 0)
 	{
 	  int y = graph_area_y + line;
-	  gdk_draw_line(widget->window, selfp->subdivision_gc, graph_area_x, y, line_end, y);
+          cairo_move_to(cr, graph_area_x, y);
+          cairo_line_to(cr, line_end, y);
+          cairo_stroke(cr);
 	}
 
-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &major_color);
+    lm_cairo_set_source_rgba(cr, &major_color);
 
-    for (line = graph_area_y + major_subdivision; line < graph_end; line += major_subdivision)
-      gdk_draw_line(widget->window, selfp->subdivision_gc, graph_area_x, line, line_end, line);
+    for (line = graph_area_y + major_subdivision; line < graph_end; line += major_subdivision) {
+      cairo_move_to(cr, graph_area_x, line);
+      cairo_line_to(cr, line_end, line);
+      cairo_stroke(cr);
+    }
   }
 
   private void
@@ -589,7 +599,7 @@ class LM:Line:Graph from Gtk:Widget
     int i;
 
     cairo_new_path(cr);
-    gdk_cairo_set_source_color(cr, &host->color);
+    gdk_cairo_set_source_rgba(cr, &host->color);
 
     display_data = lm_data_set_get_display_data(host->data_set, now);
 

@@ -1,0 +1,12 @@
+[Applet Factory]
+Id=LinkMonitorApplet_Factory
+Location=@libexecdir@/link-monitor-applet
+Name=Link Monitor Applet Factory
+Description=Link Monitor Applet Factory
+
+[LinkMonitorApplet]
+Name=Link Monitor
+Description=Monitor the round-trip time to one or more hosts
+Icon=link-monitor-applet.png
+BonoboId=OAFIID:GNOME_LinkMonitorApplet
+

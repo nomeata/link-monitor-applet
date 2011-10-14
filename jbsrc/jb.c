@@ -136,7 +136,7 @@ jb_package_configure (void)
 
   jb_check_reentrant_dns_resolver();
 
-  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-2.0 >= 2.12 libgnomeui-2.0 libpanelapplet-2.0 libglade-2.0");
+  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-3.0 libpanelapplet-4.0");
 
   if (jb_variable_get_bool("geoip"))
     {
@@ -184,8 +184,10 @@ jb_package_add_resources (void)
 
   group = jb_group_new("data");
 
-  jb_group_add_resource(group, JB_GROUP_RESOURCE(jb_template_new("GNOME_LinkMonitorApplet.server.in.in")));
-  jb_group_add_bonobo_server(group, "GNOME_LinkMonitorApplet.server.in");
+  jb_group_add_resource(group, JB_GROUP_RESOURCE(jb_template_new("LinkMonitorApplet.panel-applet.in.in")));
+  jb_group_add_panel_applet(group, "LinkMonitorApplet.panel-applet.in");
+  jb_group_add_resource(group, JB_GROUP_RESOURCE(jb_template_new("LinkMonitorApplet.service.in.in")));
+  jb_group_add_dbus_service(group, "LinkMonitorApplet.service.in");
 
   jb_group_add_gconf_schemas(group, "link-monitor-applet.schemas.in");
 
@@ -295,7 +297,7 @@ jb_package_add_resources (void)
   group = jb_group_new("ui");
 
   jb_group_add_data_files(group,
-			  "preferences-dialog.glade", "$pkgdatadir",
+			  "preferences-dialog.ui", "$pkgdatadir",
 			  "GNOME_LinkMonitorApplet.xml", "$datadir/gnome-2.0/ui",
 			  NULL);
 

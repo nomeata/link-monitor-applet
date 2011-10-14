@@ -26,7 +26,5 @@ class LM:Dialog from Gtk:Dialog (abstract)
   init (self)
   {
     gtk_container_set_border_width(GTK_CONTAINER(self), 5);
-    gtk_dialog_set_has_separator(GTK_DIALOG(self), FALSE);
-    gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(self)->vbox), 2);
   }
 }

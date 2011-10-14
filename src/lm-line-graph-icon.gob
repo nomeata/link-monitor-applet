@@ -54,19 +54,40 @@ class LM:Line:Graph:Icon from Gtk:Widget
 
   constructor (self)
   {
-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);
 
     lm_g_object_connect(self, selfp->host,
 			"swapped-signal::notify::color", gtk_widget_queue_draw, self,
 			NULL);
   }
 
-  override (Gtk:Widget) void
+  private void
     size_request (GtkWidget *widget, GtkRequisition *requisition)
   {
     requisition->width = WIDTH;
     requisition->height = HEIGHT;
   }
+
+  override (Gtk:Widget) void
+    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_width = *natural_width = requisition.width;
+  }
+
+  override (Gtk:Widget) void
+    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_height = *natural_height = requisition.height;
+  }
+
 
   /*
    * We don't use cairo transforms because they make it cumbersome to
@@ -80,28 +101,18 @@ class LM:Line:Graph:Icon from Gtk:Widget
   {
     GtkWidget *widget = GTK_WIDGET(self);
 
-    out->x = widget->allocation.x
-      + ((widget->allocation.width - widget->requisition.width) * XALIGN)
-      + (in->x * widget->requisition.width);
-    out->y = widget->allocation.y
-      + ((widget->allocation.height - widget->requisition.height) * YALIGN)
-      + (in->y * widget->requisition.height);
+    out->x = in->x * gtk_widget_get_allocated_width(widget);
+    out->y = in->y * gtk_widget_get_allocated_height(widget);
   }
 
   override (Gtk:Widget) gboolean
-    expose_event (GtkWidget *widget, GdkEventExpose *event)
+    draw (GtkWidget *widget, cairo_t *cr)
   {
     Self *self = SELF(widget);
-    cairo_t *cr;
     Point p;
     int i;
 
-    if (! GTK_WIDGET_DRAWABLE(widget))
-      return FALSE;
-
-    cr = gdk_cairo_create(widget->window);
-
-    gdk_cairo_set_source_color(cr, &selfp->host->color);
+    lm_cairo_set_source_rgba(cr, &selfp->host->color);
 
     cairo_set_line_width(cr, LINE_WIDTH);
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
@@ -117,8 +128,6 @@ class LM:Line:Graph:Icon from Gtk:Widget
       }
 
     cairo_stroke(cr);
-
-    cairo_destroy(cr);
 
     return FALSE;
   }
