@@ -320,6 +320,36 @@ jb_group_add_bonobo_server (JBGroup *self, const char *filename)
 }
 
 void
+jb_group_add_panel_applet (JBGroup *self, const char *filename)
+{
+  g_return_if_fail(JB_IS_GROUP(self));
+  g_return_if_fail(filename != NULL);
+  g_return_if_fail(jb_feature_is_enabled(&jb_intltool_feature));
+  g_return_if_fail(jb_intltool_use_xml);
+
+  add_intltool_file(self,
+		    "Panel Applet",
+		    filename,
+		    "-b",
+		    "$datadir/gnome-panel/4.0/applets");
+}
+
+void
+jb_group_add_dbus_service (JBGroup *self, const char *filename)
+{
+  g_return_if_fail(JB_IS_GROUP(self));
+  g_return_if_fail(filename != NULL);
+  g_return_if_fail(jb_feature_is_enabled(&jb_intltool_feature));
+  g_return_if_fail(jb_intltool_use_xml);
+
+  add_intltool_file(self,
+		    "DBUS Service",
+		    filename,
+		    "-b",
+		    "$datadir/dbus-1/services");
+}
+
+void
 jb_group_add_translations (JBGroup *self, const char *languages)
 {
   char **array;

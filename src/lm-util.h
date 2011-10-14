@@ -117,7 +117,7 @@ void lm_widget_get_origin (GtkWidget *widget,
 
 void lm_window_present_from_event (GtkWindow *window);
 
-void lm_g_value_get_mandatory_color (const GValue *value, GdkColor *color);
+void lm_g_value_get_mandatory_color (const GValue *value, GdkRGBA *color);
 
 GtkTreeRowReference *lm_tree_row_reference_new_from_path_string (GtkTreeModel *model,
 								 const char *path);
@@ -126,18 +126,11 @@ gboolean lm_tree_row_reference_get_iter (GtkTreeRowReference *reference,
 int lm_tree_row_reference_compare (GtkTreeRowReference *a,
 				   GtkTreeRowReference *b);
 
-typedef struct
-{
-  double red;
-  double green;
-  double blue;
-} LMCairoColor;
+void lm_cairo_set_source_color (cairo_t *cr, const GdkColor *color);
 
-void lm_gdk_color_to_cairo_color (const GdkColor *in, LMCairoColor *out);
+void lm_cairo_set_source_rgba (cairo_t *cr, const GdkRGBA *color);
 
-void lm_cairo_set_source_color (cairo_t *cr, const LMCairoColor *color);
-
-void lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k);
+void lm_cairo_color_shade (const GdkRGBA *in, GdkRGBA *out, float k);
 
 /*
  * The size of the border painted by gtk_paint_shadow(), used by the
@@ -151,21 +144,21 @@ void lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k);
  */
 #define LM_BOX_BORDER_WIDTH 1
 
-void lm_paint_box (GdkWindow *window,
+void lm_paint_box (cairo_t *cr,
 		   GtkStateType state_type,
 		   GtkShadowType shadow_type,
-		   GdkRectangle *area,
 		   GtkWidget *widget,
-		   GdkGC *gc,
 		   int x,
 		   int y,
 		   int width,
 		   int height);
 
-void lm_paint_pixbuf (GdkWindow *window,
+void lm_paint_pixbuf (cairo_t *cr,
 		      GdkPixbuf *pixbuf,
-		      GdkRectangle *area,
 		      int x,
 		      int y);
+
+#define LM_STYLE_FRAMED "lm-frame"
+#define LM_STYLE_FLAG "lm-flag"
 
 #endif /* _LM_UTIL_H */

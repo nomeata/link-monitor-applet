@@ -28,6 +28,6 @@
 
 #include <gtk/gtk.h>
 
-GArray *lm_color_generator_generate (int count, const GdkColor *bg);
+GArray *lm_color_generator_generate (int count, const GdkRGBA *bg);
 
 #endif /* _LM_COLOR_GENERATOR_H */

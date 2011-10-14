@@ -44,55 +44,85 @@ class LM:Framed:Image from Gtk:Widget
 
   init (self)
   {
-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);    
   }
 
-  override (Gtk:Widget) void
+  private void
     size_request (GtkWidget *widget, GtkRequisition *requisition)
   {
     Self *self = SELF(widget);
 
+    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
+    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
+
+    GtkBorder border;
+    gtk_style_context_get_border (sc, gtk_widget_get_state_flags (widget), &border);
+
     if (selfp->pixbuf)
       {
-	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
-	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
+	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right;
+	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom;
       }
     else
       {
 	requisition->width = 0;
 	requisition->height = 0;
       }
+
+    gtk_style_context_remove_class (sc, LM_STYLE_FRAMED);
   }
 
+  override (Gtk:Widget) void
+    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_width = *natural_width = requisition.width;
+  }
+
+  override (Gtk:Widget) void
+    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_height = *natural_height = requisition.height;
+  }
+
+
   override (Gtk:Widget) gboolean
-    expose_event (GtkWidget *widget, GdkEventExpose *event)
+    draw (GtkWidget *widget, cairo_t *cr)
   {
     Self *self = SELF(widget);
     int x;
     int y;
 
-    if (! GTK_WIDGET_DRAWABLE(widget) || ! selfp->pixbuf)
+    if (! selfp->pixbuf)
       return FALSE;
 
     lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
 
-    gtk_paint_shadow(widget->style,
-		     widget->window,
-		     GTK_WIDGET_STATE(widget),
-		     GTK_SHADOW_IN,
-		     &event->area,
-		     widget,
-		     NULL,
-		     x,
-		     y,
-		     widget->requisition.width,
-		     widget->requisition.height);
+    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
+    gtk_style_context_add_class (sc, LM_STYLE_FLAG);
+    GtkBorder border;
+    gtk_style_context_get_border (sc, gtk_widget_get_state_flags (widget), &border);
+    
+    gtk_render_background(sc, cr, x, y,
+		     gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right,
+		     gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom);
+    gtk_render_frame(sc, cr, x, y,
+		     gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right,
+		     gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom);
 
-    lm_paint_pixbuf(widget->window,
+    gtk_style_context_remove_class (sc, LM_STYLE_FLAG);
+
+    lm_paint_pixbuf(cr,
 		    selfp->pixbuf,
-		    &event->area,
-		    x + LM_BOX_BORDER_WIDTH,
-		    y + LM_BOX_BORDER_WIDTH);
+		    x + border.left,
+		    y + border.top);
 
     return FALSE;
   }

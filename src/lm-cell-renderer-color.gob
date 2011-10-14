@@ -30,15 +30,13 @@
 
 class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
 {
-  private GdkGC *gc unrefwith g_object_unref;
-
   private gboolean has_color;
-  private GdkColor color;
+  private GdkRGBA color;
 
-  property BOXED color (boxed_type = Gdk:Color)
+  property BOXED color (boxed_type = Gdk:RGBA)
     set
     {
-      const GdkColor *p;
+      const GdkRGBA *p;
 
       p = g_value_get_boxed(VAL);
       if (p)
@@ -68,7 +66,7 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
   private void
     get_size (self,
 	      GtkWidget *widget,
-	      GdkRectangle *cell_area,
+	      const GdkRectangle *cell_area,
 	      int *x_offset,
 	      int *y_offset,
 	      int *width,
@@ -78,8 +76,14 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
     int _width;
     int _height;
 
-    _width = cell->xpad * 2 + SIZE;
-    _height = cell->ypad * 2 + SIZE;
+    int _xpad,_ypad;
+    gtk_cell_renderer_get_padding(cell, &_xpad, &_ypad);
+
+    gfloat _xalign, _yalign;
+    gtk_cell_renderer_get_alignment(cell, &_xalign, &_yalign);
+
+    _width = _xpad * 2 + SIZE;
+    _height = _ypad * 2 + SIZE;
 
     if (width)
       *width = _width;
@@ -91,12 +95,12 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
 	if (x_offset)
 	  {
 	    *x_offset = ((gtk_widget_get_direction(widget) == GTK_TEXT_DIR_RTL) ?
-			 (1.0 - cell->xalign) : cell->xalign) * (cell_area->width - _width);
+			 (1.0 - _xalign) : _xalign) * (cell_area->width - _width);
 	    *x_offset = MAX(*x_offset, 0);
 	  }
 	if (y_offset)
 	  {
-	    *y_offset = cell->yalign * (cell_area->height - _height);
+	    *y_offset = _yalign * (cell_area->height - _height);
 	    *y_offset = MAX(*y_offset, 0);
 	  }
       }
@@ -112,7 +116,7 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
   override (Gtk:Cell:Renderer) void
     get_size (GtkCellRenderer *cell,
 	      GtkWidget *widget,
-	      GdkRectangle *cell_area,
+	      const GdkRectangle *cell_area,
 	      int *x_offset,
 	      int *y_offset,
 	      int *width,
@@ -123,11 +127,10 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
 
   override (Gtk:Cell:Renderer) void
     render (GtkCellRenderer *cell,
-	    GdkDrawable *window,
+	    cairo_t *cr,
 	    GtkWidget *widget,
-	    GdkRectangle *background_area,
-	    GdkRectangle *cell_area,
-	    GdkRectangle *expose_area,
+	    const GdkRectangle *background_area,
+	    const GdkRectangle *cell_area,
 	    GtkCellRendererState flags)
   {
     Self *self = SELF(cell);
@@ -144,20 +147,23 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
 
     self_get_size(self, widget, cell_area, &x_offset, &y_offset, &width, &height);
 
-    width -= cell->xpad * 2;
-    height -= cell->ypad * 2;
+    int _xpad,_ypad;
+    gtk_cell_renderer_get_padding(cell, &_xpad, &_ypad);
+
+    width -= _xpad * 2;
+    height -= _ypad * 2;
 
     if (width <= 0 || height <= 0)
       return;
 
-    x = cell_area->x + x_offset + cell->xpad;
-    y = cell_area->y + y_offset + cell->ypad;
+    x = cell_area->x + x_offset + _xpad;
+    y = cell_area->y + y_offset + _ypad;
 
-    if (! cell->sensitive)
+    if (! gtk_cell_renderer_get_sensitive(cell))
       state = GTK_STATE_INSENSITIVE;
     else if ((flags & GTK_CELL_RENDERER_SELECTED) != 0)
       {
-	if (GTK_WIDGET_HAS_FOCUS(widget))
+	if (gtk_widget_has_focus(widget))
 	  state = GTK_STATE_SELECTED;
 	else
 	  state = GTK_STATE_ACTIVE;
@@ -165,17 +171,12 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
     else
       state = GTK_STATE_NORMAL;
 
-    if (! selfp->gc)
-      selfp->gc = gdk_gc_new(window);
+    lm_cairo_set_source_rgba(cr, &selfp->color);
 
-    gdk_gc_set_rgb_fg_color(selfp->gc, &selfp->color);
-
-    lm_paint_box(window,
+    lm_paint_box(cr,
 		 state,
 		 GTK_SHADOW_IN,
-		 expose_area,
 		 widget,
-		 selfp->gc,
 		 x,
 		 y,
 		 width,
@@ -187,8 +188,8 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
 	      GdkEvent *event,
 	      GtkWidget *widget,
 	      const char *path,
-	      GdkRectangle *background_area,
-	      GdkRectangle *cell_area,
+	      const GdkRectangle *background_area,
+	      const GdkRectangle *cell_area,
 	      GtkCellRendererState flags)
   {
     Self *self = SELF(cell);
