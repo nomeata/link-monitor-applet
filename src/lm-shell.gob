@@ -52,7 +52,7 @@ typedef struct
 LMShell *lm_shell = NULL;
 %}
 
-class LM:Shell
+class LM:Shell from G:Object
 {
   public uint16_t icmp_ident;
 
