@@ -1,8 +1,8 @@
-link-monitor-applet (3.0-5) UNRELEASED; urgency=low
+link-monitor-applet (3.0-5) unstable; urgency=low
 
   * Port applet to gtk3 et. al (Closes: 638090)
 
- -- Joachim Breitner <nomeata@debian.org>  Sun, 23 Oct 2011 18:47:42 +0200
+ -- Joachim Breitner <nomeata@debian.org>  Sun, 23 Oct 2011 18:54:54 +0200
 
 link-monitor-applet (3.0-4) unstable; urgency=low
 
