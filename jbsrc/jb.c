@@ -298,6 +298,7 @@ jb_package_add_resources (void)
 
   jb_group_add_data_files(group,
 			  "preferences-dialog.ui", "$pkgdatadir",
+			  "lm-style.css", "$pkgdatadir",
 			  "GNOME_LinkMonitorApplet.xml", "$datadir/gnome-2.0/ui",
 			  NULL);
 

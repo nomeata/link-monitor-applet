@@ -105,6 +105,21 @@ main (int argc, char **argv)
   gtk_window_set_default_icon(icon);
   g_object_unref(icon);
 
+  // This code loads the application specific CSS file used for the charts and
+  // icons (frame and white background)
+  GtkCssProvider *css_provider = gtk_css_provider_new();
+  GError *error = NULL;
+  if (!gtk_css_provider_load_from_path(css_provider, PKGDATADIR G_DIR_SEPARATOR_S "lm-style.css", &error)) {
+    fprintf(stderr, "Link-Monitor-Applet: Unable to load CSS data \"%s\": %s\n",
+          PKGDATADIR G_DIR_SEPARATOR_S "lm-style.css", error->message);
+    g_error_free (error);
+  }
+  gtk_style_context_add_provider_for_screen(
+    gdk_screen_get_default(),
+    css_provider,
+    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+
   lm_shell_new(sockets);
 
   return lm_applet_factory_main();

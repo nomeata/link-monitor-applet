@@ -53,15 +53,15 @@ class LM:Framed:Image from Gtk:Widget
     Self *self = SELF(widget);
 
     GtkStyleContext *sc = gtk_widget_get_style_context(widget);
-    gtk_style_context_add_class (sc, GTK_STYLE_CLASS_FRAME);
+    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
 
-    GtkBorder padding;
-    gtk_style_context_get_padding (sc, gtk_widget_get_state_flags (widget), &padding);
+    GtkBorder border;
+    gtk_style_context_get_border (sc, gtk_widget_get_state_flags (widget), &border);
 
     if (selfp->pixbuf)
       {
-	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + padding.left + padding.right;
-	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + padding.top + padding.bottom;
+	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right;
+	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom;
       }
     else
       {
@@ -69,7 +69,7 @@ class LM:Framed:Image from Gtk:Widget
 	requisition->height = 0;
       }
 
-    gtk_style_context_remove_class (sc, GTK_STYLE_CLASS_FRAME);
+    gtk_style_context_remove_class (sc, LM_STYLE_FRAMED);
   }
 
   override (Gtk:Widget) void
@@ -106,23 +106,23 @@ class LM:Framed:Image from Gtk:Widget
     lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
 
     GtkStyleContext *sc = gtk_widget_get_style_context(widget);
-    gtk_style_context_add_class (sc, GTK_STYLE_CLASS_FRAME);
-    GtkBorder padding;
-    gtk_style_context_get_padding (sc, gtk_widget_get_state_flags (widget), &padding);
+    gtk_style_context_add_class (sc, LM_STYLE_FLAG);
+    GtkBorder border;
+    gtk_style_context_get_border (sc, gtk_widget_get_state_flags (widget), &border);
     
     gtk_render_background(sc, cr, x, y,
-		     gdk_pixbuf_get_width(selfp->pixbuf) + padding.left + padding.right,
-		     gdk_pixbuf_get_height(selfp->pixbuf) + padding.top + padding.bottom);
+		     gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right,
+		     gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom);
     gtk_render_frame(sc, cr, x, y,
-		     gdk_pixbuf_get_width(selfp->pixbuf) + padding.left + padding.right,
-		     gdk_pixbuf_get_height(selfp->pixbuf) + padding.top + padding.bottom);
+		     gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right,
+		     gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom);
 
-    gtk_style_context_remove_class (sc, GTK_STYLE_CLASS_FRAME);
+    gtk_style_context_remove_class (sc, LM_STYLE_FLAG);
 
     lm_paint_pixbuf(cr,
 		    selfp->pixbuf,
-		    x + padding.left,
-		    y + padding.top);
+		    x + border.left,
+		    y + border.top);
 
     return FALSE;
   }

@@ -158,4 +158,7 @@ void lm_paint_pixbuf (cairo_t *cr,
 		      int x,
 		      int y);
 
+#define LM_STYLE_FRAMED "lm-frame"
+#define LM_STYLE_FLAG "lm-flag"
+
 #endif /* _LM_UTIL_H */

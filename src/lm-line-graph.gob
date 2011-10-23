@@ -447,14 +447,21 @@ class LM:Line:Graph from Gtk:Widget
     graph_x = x + selfp->graph_x;
     graph_y = y + selfp->graph_y;
 
-    lm_paint_box(cr,
-		 gtk_widget_get_state(widget),
-		 GTK_SHADOW_IN,
-		 widget,
-		 graph_x,
-		 graph_y,
-		 LM_LINE_GRAPH_WIDTH,
-		 LM_LINE_GRAPH_HEIGHT);
+    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
+    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
+
+    gtk_render_background(sc, cr,
+		graph_x,
+		graph_y,
+		LM_LINE_GRAPH_WIDTH,
+		LM_LINE_GRAPH_HEIGHT);
+    gtk_render_frame(sc, cr,
+		graph_x,
+		graph_y,
+		LM_LINE_GRAPH_WIDTH,
+		LM_LINE_GRAPH_HEIGHT);
+
+    gtk_style_context_remove_class(sc, LM_STYLE_FRAMED);
 
     graph_area_x = graph_x + LM_BOX_BORDER_WIDTH;
     graph_area_y = graph_y + LM_BOX_BORDER_WIDTH;
@@ -567,8 +574,8 @@ class LM:Line:Graph from Gtk:Widget
     draw_subdivisions (self, cairo_t *cr, int graph_area_x, int graph_area_y)
   {
     GtkWidget *widget = GTK_WIDGET(self);
-    GdkRGBA minor_color = { 0, 0xe000, 0xe000, 0xe000 };
-    GdkRGBA major_color = { 0, 0xff00, 0xcc00, 0xcc00 };
+    GdkRGBA minor_color = { 0.875, 0.875, 0.875, 1.0 };
+    GdkRGBA major_color = { 1.0, 0.75, 0.75, 1.0 };
     GdkRGBA *custom_minor_color;
     GdkRGBA *custom_major_color;
     int minor_subdivision;
@@ -602,21 +609,22 @@ class LM:Line:Graph from Gtk:Widget
     graph_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH;
 
     lm_cairo_set_source_rgba(cr, &minor_color);
+    cairo_set_line_width(cr, 1.0);
 
     for (line = minor_subdivision; line < LM_LINE_GRAPH_AREA_WIDTH; line += minor_subdivision)
       if (line % major_subdivision != 0)
 	{
 	  int x = graph_area_x + line;
-          cairo_move_to(cr, x, graph_area_y);
-          cairo_line_to(cr, x, line_end);
+          cairo_move_to(cr, x+0.5, graph_area_y+0.5);
+          cairo_line_to(cr, x+0.5, line_end+0.5);
           cairo_stroke(cr);
 	}
 
     lm_cairo_set_source_rgba(cr, &major_color);
 
     for (line = graph_area_x + major_subdivision; line < graph_end; line += major_subdivision) {
-      cairo_move_to(cr, line, graph_area_y);
-      cairo_line_to(cr, line, line_end);
+      cairo_move_to(cr, line+0.5, graph_area_y+0.5);
+      cairo_line_to(cr, line+0.5, line_end+0.5);
       cairo_stroke(cr);
     }
 
@@ -642,15 +650,15 @@ class LM:Line:Graph from Gtk:Widget
       if (line % major_subdivision != 0)
 	{
 	  int y = graph_area_y + line;
-          cairo_move_to(cr, graph_area_x, y);
-          cairo_line_to(cr, line_end, y);
+          cairo_move_to(cr, graph_area_x+0.5, y+0.5);
+          cairo_line_to(cr, line_end+0.5, y+0.5);
           cairo_stroke(cr);
 	}
 
     lm_cairo_set_source_rgba(cr, &major_color);
 
     for (line = graph_area_y + major_subdivision; line < graph_end; line += major_subdivision) {
-      cairo_move_to(cr, graph_area_x, line);
+      cairo_move_to(cr, graph_area_x+0.5, line+0.5);
       cairo_line_to(cr, line_end, line);
       cairo_stroke(cr);
     }
