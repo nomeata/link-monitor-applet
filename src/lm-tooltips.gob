@@ -285,24 +285,22 @@ class LM:Tooltips from G:Object
   }
 
   private gboolean
-    paint_window (self)
+    paint_window (self, cairo_t *cr)
   {
     GtkRequisition req;
 
     gtk_widget_size_request(selfp->window, &req);
-    /*
-    gtk_paint_flat_box(selfp->window->style,
-		       selfp->window->window,
-		       GTK_STATE_NORMAL,
-		       GTK_SHADOW_OUT,
-		       NULL,
-		       selfp->window,
-		       "tooltip",
-		       0,
-		       0,
-		       req.width,
-		       req.height);
-    */
+
+    int width = gtk_widget_get_allocated_width(selfp->window); 	
+    int height = gtk_widget_get_allocated_height(selfp->window); 	
+
+    GtkStyleContext *sc = gtk_widget_get_style_context(selfp->window);
+
+    gtk_style_context_add_class (sc, GTK_STYLE_CLASS_TOOLTIP);
+    gtk_render_background(sc, cr, 0, 0, width, height);
+    gtk_render_frame(sc, cr, 0, 0, width, height);
+    gtk_style_context_remove_class (sc, GTK_STYLE_CLASS_TOOLTIP);
+
     return FALSE;
   }
 
