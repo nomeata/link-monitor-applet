@@ -52,16 +52,24 @@ class LM:Framed:Image from Gtk:Widget
   {
     Self *self = SELF(widget);
 
+    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
+    gtk_style_context_add_class (sc, GTK_STYLE_CLASS_FRAME);
+
+    GtkBorder padding;
+    gtk_style_context_get_padding (sc, gtk_widget_get_state_flags (widget), &padding);
+
     if (selfp->pixbuf)
       {
-	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
-	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
+	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + padding.left + padding.right;
+	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + padding.top + padding.bottom;
       }
     else
       {
 	requisition->width = 0;
 	requisition->height = 0;
       }
+
+    gtk_style_context_remove_class (sc, GTK_STYLE_CLASS_FRAME);
   }
 
   override (Gtk:Widget) void
@@ -97,17 +105,24 @@ class LM:Framed:Image from Gtk:Widget
 
     lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
 
-    gtk_render_frame(gtk_widget_get_style_context(widget),
-		     cr,
-		     x,
-		     y,
-		     gtk_widget_get_allocated_width(widget),
-		     gtk_widget_get_allocated_height(widget));
+    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
+    gtk_style_context_add_class (sc, GTK_STYLE_CLASS_FRAME);
+    GtkBorder padding;
+    gtk_style_context_get_padding (sc, gtk_widget_get_state_flags (widget), &padding);
+    
+    gtk_render_background(sc, cr, x, y,
+		     gdk_pixbuf_get_width(selfp->pixbuf) + padding.left + padding.right,
+		     gdk_pixbuf_get_height(selfp->pixbuf) + padding.top + padding.bottom);
+    gtk_render_frame(sc, cr, x, y,
+		     gdk_pixbuf_get_width(selfp->pixbuf) + padding.left + padding.right,
+		     gdk_pixbuf_get_height(selfp->pixbuf) + padding.top + padding.bottom);
+
+    gtk_style_context_remove_class (sc, GTK_STYLE_CLASS_FRAME);
 
     lm_paint_pixbuf(cr,
 		    selfp->pixbuf,
-		    x + LM_BOX_BORDER_WIDTH,
-		    y + LM_BOX_BORDER_WIDTH);
+		    x + padding.left,
+		    y + padding.top);
 
     return FALSE;
   }
