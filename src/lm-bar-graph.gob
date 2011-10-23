@@ -62,7 +62,7 @@ class LM:Bar:Graph from Gtk:Widget
   {
     int i;
 
-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
+    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);
 
     lm_g_object_connect(self, selfp->applet,
 			"swapped-signal::notify::scale", gtk_widget_queue_draw, self,
@@ -80,15 +80,21 @@ class LM:Bar:Graph from Gtk:Widget
       }
   }
 
-  override (Gtk:Widget) void
+  private void
     size_request (GtkWidget *widget, GtkRequisition *requisition)
   {
     Self *self = SELF(widget);
     int num_bars;
     int thickness;
 
+    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
+    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
+    GtkBorder padding, border;
+    gtk_style_context_get_padding(sc, gtk_widget_get_state_flags(widget), &padding);
+    gtk_style_context_get_border(sc, gtk_widget_get_state_flags(widget), &border);
+
     num_bars = selfp->applet->hosts->len;
-    thickness = LM_BOX_BORDER_WIDTH * 2
+    thickness = padding.left + border.left + padding.right + border.right
       + BAR_PADDING * 2
       + num_bars * BAR_THICKNESS
       + (num_bars - 1) * BAR_PADDING;
@@ -109,10 +115,32 @@ class LM:Bar:Graph from Gtk:Widget
 	g_assert_not_reached();
 	break;
       }
+
+    gtk_style_context_remove_class (sc, LM_STYLE_FRAMED);
+  }
+
+  override (Gtk:Widget) void
+    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_width = *natural_width = requisition.width;
+  }
+
+  override (Gtk:Widget) void
+    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
+  {
+    GtkRequisition requisition;
+
+    self_size_request (widget, &requisition);
+
+    *minimal_height = *natural_height = requisition.height;
   }
 
   override (Gtk:Widget) gboolean
-    expose_event (GtkWidget *widget, GdkEventExpose *event)
+    draw (GtkWidget *widget, cairo_t *cr)
   {
     Self *self = SELF(widget);
     GdkRectangle entire_rect;
@@ -121,55 +149,48 @@ class LM:Bar:Graph from Gtk:Widget
     int bar_y;
     int graph_width;
     int graph_height;
-    cairo_t *cr;
     int i;
 
-    if (! GTK_WIDGET_DRAWABLE(widget))
+    if (! gtk_widget_is_drawable(widget))
       return FALSE;
 
-    switch (selfp->orientation)
-      {
-      case LM_BAR_GRAPH_ORIENTATION_HORIZONTAL:
-	entire_rect.x = widget->allocation.x;
-	lm_widget_get_origin(widget, ALIGN, ALIGN, NULL, &entire_rect.y);
-	entire_rect.width = widget->allocation.width;
-	entire_rect.height = widget->requisition.height;
-	break;
+    entire_rect.x = 0;
+    entire_rect.y = 0;
+    entire_rect.width = gtk_widget_get_allocated_width(widget);
+    entire_rect.height = gtk_widget_get_allocated_height(widget);
 
-      case LM_BAR_GRAPH_ORIENTATION_VERTICAL:
-	lm_widget_get_origin(widget, ALIGN, ALIGN, &entire_rect.x, NULL);
-	entire_rect.y = widget->allocation.y;
-	entire_rect.width = widget->requisition.width;
-	entire_rect.height = widget->allocation.height;
-	break;
+    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
+    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
+    GtkBorder padding, border;
+    gtk_style_context_get_padding(sc, gtk_widget_get_state_flags(widget), &padding);
+    gtk_style_context_get_border(sc, gtk_widget_get_state_flags(widget), &border);
 
-      default:
-	g_assert_not_reached();
-	break;
-      }
-
-    contents_rect.x = entire_rect.x + LM_BOX_BORDER_WIDTH;
-    contents_rect.y = entire_rect.y + LM_BOX_BORDER_WIDTH;
-    contents_rect.width = entire_rect.width - LM_BOX_BORDER_WIDTH * 2;
-    contents_rect.height = entire_rect.height - LM_BOX_BORDER_WIDTH * 2;
+    contents_rect.x = entire_rect.x
+   	+ padding.left + border.left;
+    contents_rect.y = entire_rect.y
+    	+ padding.top + border.top;
+    contents_rect.width = entire_rect.width
+    	- padding.left - border.left - padding.right - border.right;
+    contents_rect.height = entire_rect.height
+    	- padding.top - border.top - padding.bottom - border.bottom;
 
     bar_x = contents_rect.x + BAR_PADDING;
     bar_y = contents_rect.y + BAR_PADDING;
     graph_width = contents_rect.width - BAR_PADDING * 2;
     graph_height = contents_rect.height - BAR_PADDING * 2;
 
-    lm_paint_box(widget->window,
-		 GTK_WIDGET_STATE(widget),
-		 GTK_SHADOW_IN,
-		 &event->area,
-		 widget,
-		 widget->style->base_gc[GTK_WIDGET_STATE(widget)],
-		 entire_rect.x,
-		 entire_rect.y,
-		 entire_rect.width,
-		 entire_rect.height);
+    gtk_render_background(sc, cr,
+		entire_rect.x,
+		entire_rect.y,
+		entire_rect.width,
+		entire_rect.height);
+    gtk_render_frame(sc, cr,
+		entire_rect.x,
+		entire_rect.y,
+		entire_rect.width,
+		entire_rect.height);
 
-    cr = gdk_cairo_create(widget->window);
+    gtk_style_context_remove_class (sc, LM_STYLE_FRAMED);
 
     cairo_set_line_width(cr, LINE_WIDTH);
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
@@ -203,8 +224,6 @@ class LM:Bar:Graph from Gtk:Widget
 	  }
       }
 
-    cairo_destroy(cr);
-
     return FALSE;
   }
 
@@ -219,8 +238,7 @@ class LM:Bar:Graph from Gtk:Widget
   {
     LMHost *base_host = LM_HOST(host);
     GdkRectangle bar_rect;
-    LMCairoColor fill_color;
-    LMCairoColor border_color;
+    GdkRGBA border_color;
     double fraction;
 
     if (base_host->alive)
@@ -271,11 +289,10 @@ class LM:Bar:Graph from Gtk:Widget
     cairo_clip(cr);
     cairo_translate(cr, bar_rect.x, bar_rect.y);
 
-    lm_gdk_color_to_cairo_color(&host->color, &fill_color);
-    lm_cairo_color_shade(&fill_color, &border_color, 0.6);
+    lm_cairo_color_shade(&host->color, &border_color, 0.6);
 
     /* draw the bar border */
-    lm_cairo_set_source_color(cr, &border_color);
+    lm_cairo_set_source_rgba(cr, &border_color);
     cairo_rectangle(cr,
 		    LINE_WIDTH,
 		    LINE_WIDTH,
@@ -286,7 +303,7 @@ class LM:Bar:Graph from Gtk:Widget
     /* if the host is alive, fill the bar */
     if (base_host->alive)
       {
-	lm_cairo_set_source_color(cr, &fill_color);
+	lm_cairo_set_source_rgba(cr, &host->color);
 	cairo_fill(cr);
       }
 

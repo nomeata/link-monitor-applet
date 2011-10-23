@@ -1,0 +1,3718 @@
+From 0b341ae19e8f2283ed4c574887557e6fb1ee72d9 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Fri, 14 Oct 2011 11:42:49 +0200
+Subject: Port to GTK+3, GtkBuilder, libpanel-applet-4
+
+---
+ data/GNOME_LinkMonitorApplet.server.in.in |   28 --
+ data/LinkMonitorApplet.panel-applet.in.in |   12 +
+ data/LinkMonitorApplet.service.in.in      |    4 +
+ data/link-monitor-applet.schemas.in       |   10 +
+ jbsrc/jb.c                                |   11 +-
+ jbsrc/lib/jb-group.c                      |   30 ++
+ jbsrc/lib/jb-group.h                      |    4 +
+ src/lm-about-dialog.gob                   |    9 +-
+ src/lm-applet.gob                         |  173 +++++----
+ src/lm-bar-graph.gob                      |  130 ++++---
+ src/lm-cell-renderer-color.gob            |   61 ++--
+ src/lm-color-generator.c                  |   73 ++--
+ src/lm-color-generator.h                  |    2 +-
+ src/lm-dialog.gob                         |    2 -
+ src/lm-framed-image.gob                   |   72 +++-
+ src/lm-host-frontend.gob                  |   26 +-
+ src/lm-host-view.gob                      |   26 +-
+ src/lm-line-graph-icon.gob                |   45 ++-
+ src/lm-line-graph.gob                     |  275 ++++++++++-----
+ src/lm-main.c                             |   39 ++-
+ src/lm-preferences-dialog.gob             |   24 ++-
+ src/lm-tooltips.gob                       |   79 ++--
+ src/lm-util.c                             |  150 ++++-----
+ src/lm-util.h                             |   25 +-
+ ui/GNOME_LinkMonitorApplet.xml            |   12 +-
+ ui/lm-style.css                           |   11 +
+ ui/preferences-dialog.glade               |  405 --------------------
+ ui/preferences-dialog.ui                  |  573 +++++++++++++++++++++++++++++
+ 28 files changed, 1362 insertions(+), 949 deletions(-)
+ delete mode 100644 data/GNOME_LinkMonitorApplet.server.in.in
+ create mode 100644 data/LinkMonitorApplet.panel-applet.in.in
+ create mode 100644 data/LinkMonitorApplet.service.in.in
+ create mode 100644 ui/lm-style.css
+ delete mode 100644 ui/preferences-dialog.glade
+ create mode 100644 ui/preferences-dialog.ui
+
+diff --git a/data/GNOME_LinkMonitorApplet.server.in.in b/data/GNOME_LinkMonitorApplet.server.in.in
+deleted file mode 100644
+index 5c62a9f..0000000
+--- a/data/GNOME_LinkMonitorApplet.server.in.in
++++ /dev/null
+@@ -1,28 +0,0 @@
+-<oaf_info>
+-	<oaf_server iid="OAFIID:GNOME_LinkMonitorApplet_Factory"
+-		    type="exe"
+-		    location="@libexecdir@/link-monitor-applet">
+-
+-		<oaf_attribute name="repo_ids" type="stringv">
+-			<item value="IDL:Bonobo/GenericFactory:1.0"/>
+-			<item value="IDL:Bonobo/Unknown:1.0"/>
+-		</oaf_attribute>
+-		<oaf_attribute name="name" type="string" value="Link Monitor Applet Factory"/>
+-		<oaf_attribute name="description" type="string" value="Link Monitor Applet Factory"/>
+-	</oaf_server>
+-
+-	<oaf_server iid="OAFIID:GNOME_LinkMonitorApplet"
+-		    type="factory" 
+-		    location="OAFIID:GNOME_LinkMonitorApplet_Factory">
+-
+-		<oaf_attribute name="repo_ids" type="stringv">
+-			<item value="IDL:GNOME/Vertigo/PanelAppletShell:1.0"/>
+-			<item value="IDL:Bonobo/Control:1.0"/>
+-			<item value="IDL:Bonobo/Unknown:1.0"/>
+-		</oaf_attribute>
+-		<oaf_attribute name="name" type="string" _value="Link Monitor"/>
+-		<oaf_attribute name="description" type="string" _value="Monitor the round-trip time to one or more hosts"/>
+-		<oaf_attribute name="panel:category" type="string" value="Internet"/>
+-		<oaf_attribute name="panel:icon" type="string" value="link-monitor-applet.png"/>
+-	</oaf_server>
+-</oaf_info>
+diff --git a/data/LinkMonitorApplet.panel-applet.in.in b/data/LinkMonitorApplet.panel-applet.in.in
+new file mode 100644
+index 0000000..092ddb4
+--- /dev/null
++++ b/data/LinkMonitorApplet.panel-applet.in.in
+@@ -0,0 +1,12 @@
++[Applet Factory]
++Id=LinkMonitorApplet_Factory
++Location=@libexecdir@/link-monitor-applet
++Name=Link Monitor Applet Factory
++Description=Link Monitor Applet Factory
++
++[LinkMonitorApplet]
++Name=Link Monitor
++Description=Monitor the round-trip time to one or more hosts
++Icon=link-monitor-applet.png
++BonoboId=OAFIID:GNOME_LinkMonitorApplet
++
+diff --git a/data/LinkMonitorApplet.service.in.in b/data/LinkMonitorApplet.service.in.in
+new file mode 100644
+index 0000000..6e0d7e4
+--- /dev/null
++++ b/data/LinkMonitorApplet.service.in.in
+@@ -0,0 +1,4 @@
++[D-BUS Service]
++Name=org.gnome.panel.applet.LinkMonitorApplet_Factory
++Exec=@libexecdir@/link-monitor-applet
++
+diff --git a/data/link-monitor-applet.schemas.in b/data/link-monitor-applet.schemas.in
+index 9e197de..b63ec04 100644
+--- a/data/link-monitor-applet.schemas.in
++++ b/data/link-monitor-applet.schemas.in
+@@ -31,6 +31,16 @@
+       </locale>
+     </schema>
+     <schema>
++      <key>/schemas/apps/link-monitor-applet/prefs/logarithmic</key>
++      <owner>link-monitor-applet</owner>
++      <type>bool</type>
++      <default>FALSE</default>
++      <locale name="C">
++        <short>Scale type</short>
++        <long>Whether the panel scale is logarithmic</long>
++      </locale>
++    </schema>
++    <schema>
+       <key>/schemas/apps/link-monitor-applet/prefs/tooltip_graph_span</key>
+       <owner>link-monitor-applet</owner>
+       <type>int</type>
+diff --git a/jbsrc/jb.c b/jbsrc/jb.c
+index 74fa10c..3a49ca2 100644
+--- a/jbsrc/jb.c
++++ b/jbsrc/jb.c
+@@ -136,7 +136,7 @@ jb_package_configure (void)
+ 
+   jb_check_reentrant_dns_resolver();
+ 
+-  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-2.0 >= 2.12 libgnomeui-2.0 libpanelapplet-2.0 libglade-2.0");
++  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-3.0 libpanelapplet-4.0");
+ 
+   if (jb_variable_get_bool("geoip"))
+     {
+@@ -184,8 +184,10 @@ jb_package_add_resources (void)
+ 
+   group = jb_group_new("data");
+ 
+-  jb_group_add_resource(group, JB_GROUP_RESOURCE(jb_template_new("GNOME_LinkMonitorApplet.server.in.in")));
+-  jb_group_add_bonobo_server(group, "GNOME_LinkMonitorApplet.server.in");
++  jb_group_add_resource(group, JB_GROUP_RESOURCE(jb_template_new("LinkMonitorApplet.panel-applet.in.in")));
++  jb_group_add_panel_applet(group, "LinkMonitorApplet.panel-applet.in");
++  jb_group_add_resource(group, JB_GROUP_RESOURCE(jb_template_new("LinkMonitorApplet.service.in.in")));
++  jb_group_add_dbus_service(group, "LinkMonitorApplet.service.in");
+ 
+   jb_group_add_gconf_schemas(group, "link-monitor-applet.schemas.in");
+ 
+@@ -295,7 +297,8 @@ jb_package_add_resources (void)
+   group = jb_group_new("ui");
+ 
+   jb_group_add_data_files(group,
+-			  "preferences-dialog.glade", "$pkgdatadir",
++			  "preferences-dialog.ui", "$pkgdatadir",
++			  "lm-style.css", "$pkgdatadir",
+ 			  "GNOME_LinkMonitorApplet.xml", "$datadir/gnome-2.0/ui",
+ 			  NULL);
+ 
+diff --git a/jbsrc/lib/jb-group.c b/jbsrc/lib/jb-group.c
+index a7adeca..b202810 100644
+--- a/jbsrc/lib/jb-group.c
++++ b/jbsrc/lib/jb-group.c
+@@ -320,6 +320,36 @@ jb_group_add_bonobo_server (JBGroup *self, const char *filename)
+ }
+ 
+ void
++jb_group_add_panel_applet (JBGroup *self, const char *filename)
++{
++  g_return_if_fail(JB_IS_GROUP(self));
++  g_return_if_fail(filename != NULL);
++  g_return_if_fail(jb_feature_is_enabled(&jb_intltool_feature));
++  g_return_if_fail(jb_intltool_use_xml);
++
++  add_intltool_file(self,
++		    "Panel Applet",
++		    filename,
++		    "-b",
++		    "$datadir/gnome-panel/4.0/applets");
++}
++
++void
++jb_group_add_dbus_service (JBGroup *self, const char *filename)
++{
++  g_return_if_fail(JB_IS_GROUP(self));
++  g_return_if_fail(filename != NULL);
++  g_return_if_fail(jb_feature_is_enabled(&jb_intltool_feature));
++  g_return_if_fail(jb_intltool_use_xml);
++
++  add_intltool_file(self,
++		    "DBUS Service",
++		    filename,
++		    "-b",
++		    "$datadir/dbus-1/services");
++}
++
++void
+ jb_group_add_translations (JBGroup *self, const char *languages)
+ {
+   char **array;
+diff --git a/jbsrc/lib/jb-group.h b/jbsrc/lib/jb-group.h
+index 311e715..8aa5364 100644
+--- a/jbsrc/lib/jb-group.h
++++ b/jbsrc/lib/jb-group.h
+@@ -89,6 +89,10 @@ void jb_group_add_gconf_schemas (JBGroup *self, const char *filename);
+ 
+ void jb_group_add_bonobo_server (JBGroup *self, const char *filename);
+ 
++void jb_group_add_dbus_service (JBGroup *self, const char *filename);
++
++void jb_group_add_panel_applet (JBGroup *self, const char *filename);
++
+ void jb_group_add_translations (JBGroup *self, const char *languages);
+ 
+ #endif /* _JB_GROUP_H */
+diff --git a/src/lm-about-dialog.gob b/src/lm-about-dialog.gob
+index d5b1e87..0b9bc45 100644
+--- a/src/lm-about-dialog.gob
++++ b/src/lm-about-dialog.gob
+@@ -19,11 +19,11 @@
+ 
+ %headertop{
+ #include <gtk/gtk.h>
++#include <gdk/gdk.h>
+ %}
+ 
+ %{
+ #include <glib/gi18n.h>
+-#include <gnome.h>
+ #include "lm-util.h"
+ %}
+ 
+@@ -31,8 +31,9 @@ class LM:About:Dialog from Gtk:About:Dialog
+ {
+   class_init (class)
+   {
+-    gtk_about_dialog_set_email_hook(self_activate_link_cb, "mailto:", NULL);
+-    gtk_about_dialog_set_url_hook(self_activate_link_cb, NULL, NULL);
++    // GTK3TODO: Is this still required?
++    // gtk_about_dialog_set_email_hook(self_activate_link_cb, "mailto:", NULL);
++    // gtk_about_dialog_set_url_hook(self_activate_link_cb, NULL, NULL);
+   }
+ 
+   init (self)
+@@ -73,7 +74,7 @@ class LM:About:Dialog from Gtk:About:Dialog
+     char *url;
+ 
+     url = prefix ? g_strconcat(prefix, link_, NULL) : g_strdup(link_);
+-    if (! gnome_url_show(url, &err))
++    if (! gtk_show_uri(NULL, url, GDK_CURRENT_TIME, &err))
+       {
+         lm_show_error_dialog(GTK_WINDOW(about), _("Unable to open link"), "%s", err->message);
+ 	g_error_free(err);
+diff --git a/src/lm-applet.gob b/src/lm-applet.gob
+index 849cb67..902f8e5 100644
+--- a/src/lm-applet.gob
++++ b/src/lm-applet.gob
+@@ -18,13 +18,13 @@
+  */
+ 
+ %headertop{
+-#include <gnome.h>
+ #include <panel-applet.h>
+ #include "lm-host.h"
+ %}
+ 
+ %privateheader{
+ #include <gtk/gtk.h>
++#include <gdk/gdk.h>
+ %}
+ 
+ %{
+@@ -50,6 +50,7 @@
+ #define CONF_HOSTS			"hosts"
+ #define CONF_DELAY			"delay"
+ #define CONF_SCALE			"scale"
++#define CONF_LOGARITHMIC		"logarithmic"
+ #define CONF_TOOLTIP_GRAPH_SPAN		"tooltip_graph_span"
+ #define CONF_PREFERENCES_WIDTH		"preferences_width"
+ #define CONF_PREFERENCES_HEIGHT		"preferences_height"
+@@ -58,6 +59,7 @@
+ 
+ #define DEFAULT_DELAY			1000
+ #define DEFAULT_SCALE			500
++#define DEFAULT_LOGARITHMIC		FALSE
+ #define DEFAULT_TOOLTIP_GRAPH_SPAN	60
+ #define DEFAULT_PREFERENCES_WIDTH	-1
+ #define DEFAULT_PREFERENCES_HEIGHT	400
+@@ -96,6 +98,17 @@ class LM:Applet from Panel:Applet
+       g_value_set_int(VAL, self->scale);
+     };
+ 
++  public gboolean logarithmic;	/* whether the panel scale is logarithmic */
++  property BOOLEAN logarithmic (default_value = DEFAULT_LOGARITHMIC, export)
++    set
++    {
++      panel_applet_gconf_set_bool(PANEL_APPLET(self), CONF_LOGARITHMIC, self->logarithmic = g_value_get_boolean(VAL), NULL);
++    }
++    get
++    {
++      g_value_set_boolean(VAL, self->logarithmic);
++    };
++
+   public int tooltip_graph_span; /* seconds */
+   property INT tooltip_graph_span (minimum = MIN_TOOLTIP_GRAPH_SPAN, default_value = DEFAULT_TOOLTIP_GRAPH_SPAN, export)
+     set
+@@ -161,39 +174,47 @@ class LM:Applet from Panel:Applet
+ 
+     binding_set = gtk_binding_set_by_class(class);
+ 
+-    gtk_binding_entry_add_signal(binding_set, GDK_Return, 0, "activate", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_ISO_Enter, 0, "activate", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_KP_Enter, 0, "activate", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Return, 0, "activate", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_ISO_Enter, 0, "activate", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_KP_Enter, 0, "activate", 0);
+ 
+-    gtk_binding_entry_add_signal(binding_set, GDK_Return, GDK_MOD1_MASK, "activate-preferences", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_ISO_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_KP_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Return, GDK_MOD1_MASK, "activate-preferences", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_ISO_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_KP_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
+   }
+ 
+   private gboolean
+     factory_cb (PanelApplet *applet, const char *iid, gpointer data)
+   {
++
+     Self *self = SELF(applet);
+-    static const BonoboUIVerb menu_verbs[] = {
+-      BONOBO_UI_VERB("LinkMonitorPreferences", self_preferences_cb),
+-      BONOBO_UI_VERB("LinkMonitorHelp", self_help_cb),
+-      BONOBO_UI_VERB("LinkMonitorAbout", self_about_cb),
+-      BONOBO_UI_VERB_END
++    static const GtkActionEntry menu_actions[] = {
++      { "LinkMonitorPreferences", GTK_STOCK_PROPERTIES, N_("_Preferences..."),
++      		NULL, NULL, G_CALLBACK(self_preferences_cb)},
++      { "LinkMonitorHelp", GTK_STOCK_HELP, N_("_Help"),
++      		NULL, NULL, G_CALLBACK(self_help_cb)},
++      { "LinkMonitorAbout", GTK_STOCK_ABOUT, N_("_About..."),
++      		NULL, NULL, G_CALLBACK(self_about_cb)},
+     };
+     GSList *gconf_hosts;
+     GSList *l;
+     int num_hosts = 0;
+ 
+-    if (strcmp(iid, "OAFIID:GNOME_LinkMonitorApplet"))
++    if (strcmp(iid, "LinkMonitorApplet"))
+       return FALSE;
+ 
+-    GDK_THREADS_ENTER();
++    // GTK2TODO:
++    // GDK_THREADS_ENTER();
+ 
+     lm_shell->applets = g_slist_append(lm_shell->applets, self);
+ 
+     panel_applet_set_flags(applet, PANEL_APPLET_EXPAND_MINOR);
+     panel_applet_add_preferences(applet, "/schemas/apps/link-monitor-applet/prefs", NULL);
+-    panel_applet_setup_menu_from_file(applet, DATADIR, "GNOME_LinkMonitorApplet.xml", NULL, menu_verbs, applet);
++    GtkActionGroup *action_group = gtk_action_group_new ("Link-Monitor-Applet Actions");
++    gtk_action_group_set_translation_domain (action_group, GETTEXT_PACKAGE);
++    gtk_action_group_add_actions (action_group, menu_actions, G_N_ELEMENTS (menu_actions), self);
++    panel_applet_setup_menu_from_file (applet, DATADIR "/gnome-2.0/ui/GNOME_LinkMonitorApplet.xml", action_group);
++    g_object_unref (action_group);
+ 
+     self->delay = panel_applet_gconf_get_int(applet, CONF_DELAY, NULL);
+     if (self->delay < MIN_DELAY)
+@@ -203,6 +224,8 @@ class LM:Applet from Panel:Applet
+     if (self->scale < MIN_SCALE)
+       self->scale = DEFAULT_SCALE;
+ 
++    self->logarithmic = panel_applet_gconf_get_bool(applet, CONF_LOGARITHMIC, NULL);
++
+     self->tooltip_graph_span = panel_applet_gconf_get_int(applet, CONF_TOOLTIP_GRAPH_SPAN, NULL);
+     if (self->tooltip_graph_span < MIN_TOOLTIP_GRAPH_SPAN)
+       self->tooltip_graph_span = DEFAULT_TOOLTIP_GRAPH_SPAN;
+@@ -217,6 +240,7 @@ class LM:Applet from Panel:Applet
+ 
+     selfp->tooltip_flag_size_group = gtk_size_group_new(GTK_SIZE_GROUP_HORIZONTAL);
+ 
++
+     gconf_hosts = panel_applet_gconf_get_list(applet, CONF_HOSTS, GCONF_VALUE_STRING, NULL);
+     LM_LIST_FOREACH(l, gconf_hosts)
+       {
+@@ -248,13 +272,14 @@ class LM:Applet from Panel:Applet
+ 		     "signal::button-press-event", self_button_press_event_h, NULL,
+ 		     "signal::change-orient", self_reconfigure, NULL,
+ 		     "signal::change-size", self_reconfigure, NULL,
+-		     "signal::change-background", self_change_background_h, NULL,
++		     //"signal::change-background", self_change_background_h, NULL,
+ 		     "signal::style-set", self_style_set_h, NULL,
+ 		     NULL);
+ 
+     gtk_widget_show(GTK_WIDGET(self));
+ 
+-    GDK_THREADS_LEAVE();
++    // GTK3TODO:
++    // GDK_THREADS_LEAVE();
+ 
+     return TRUE;
+   }
+@@ -265,7 +290,7 @@ class LM:Applet from Panel:Applet
+    * update the progress bars after the panel has been unrealized).
+    */
+   private void
+-    destroy_h (GtkObject *object, gpointer user_data)
++    destroy_h (GtkWidget *object, gpointer user_data)
+   {
+     Self *self = SELF(object);
+ 
+@@ -307,45 +332,47 @@ class LM:Applet from Panel:Applet
+     return FALSE;		/* remove source */
+   }
+ 
+-  /* taken from the GNOME mixer applet */
+-  private void
+-    change_background_h (PanelApplet *applet,
+-			 PanelAppletBackgroundType type,
+-			 GdkColor *color,
+-			 GdkPixmap *pixmap,
+-			 gpointer user_data)
+-  {
+-    GtkRcStyle *rc_style;
+-
+-    /* reset style */
+-    gtk_widget_set_style(GTK_WIDGET(applet), NULL);
+-    rc_style = gtk_rc_style_new();
+-    gtk_widget_modify_style(GTK_WIDGET(applet), rc_style);
+-    g_object_unref(rc_style);
+-
+-    switch (type)
+-      {
+-      case PANEL_NO_BACKGROUND:
+-	break;
+-
+-      case PANEL_COLOR_BACKGROUND:
+-	gtk_widget_modify_bg(GTK_WIDGET(applet), GTK_STATE_NORMAL, color);
+-	break;
+-
+-      case PANEL_PIXMAP_BACKGROUND:
+-	{
+-	  GtkStyle *style;
+ 
+-	  style = gtk_style_copy(GTK_WIDGET(applet)->style);
+-	  if (style->bg_pixmap[GTK_STATE_NORMAL])
+-	    g_object_unref(style->bg_pixmap[GTK_STATE_NORMAL]);
+-	  style->bg_pixmap[GTK_STATE_NORMAL] = g_object_ref(pixmap);
+-	  gtk_widget_set_style(GTK_WIDGET(applet), style);
+-	  g_object_unref(style);
+-	}
+-	break;
+-      }
+-  }
++// GTK3TODO seems to be not required any more?
++// /* taken from the GNOME mixer applet */
++//  private void
++//    change_background_h (PanelApplet *applet,
++//			 PanelAppletBackgroundType type,
++//			 GdkColor *color,
++//			 cairo_surface_t *pixmap,
++//			 gpointer user_data)
++//  {
++//    GtkRcStyle *rc_style;
++//
++//    /* reset style */
++//    gtk_widget_set_style(GTK_WIDGET(applet), NULL);
++//    rc_style = gtk_rc_style_new();
++//    gtk_widget_modify_style(GTK_WIDGET(applet), rc_style);
++//    g_object_unref(rc_style);
++//
++//    switch (type)
++//      {
++//      case PANEL_NO_BACKGROUND:
++//	break;
++//
++//      case PANEL_COLOR_BACKGROUND:
++//	gtk_widget_modify_bg(GTK_WIDGET(applet), GTK_STATE_NORMAL, color);
++//	break;
++//
++//      case PANEL_PIXMAP_BACKGROUND:
++//	{
++//	  GtkStyle *style;
++//
++//	  style = gtk_style_copy(GTK_WIDGET(applet)->style);
++//	  if (style->bg_pixmap[GTK_STATE_NORMAL])
++//	    g_object_unref(style->bg_pixmap[GTK_STATE_NORMAL]);
++//	  style->bg_pixmap[GTK_STATE_NORMAL] = g_object_ref(pixmap);
++//	  gtk_widget_set_style(GTK_WIDGET(applet), style);
++//	  g_object_unref(style);
++//	}
++//	break;
++//      }
++//  }
+ 
+   private void
+     style_set_h (GtkWidget *widget,
+@@ -377,9 +404,8 @@ class LM:Applet from Panel:Applet
+   }
+ 
+   private void
+-    preferences_cb (BonoboUIComponent *component,
+-		    gpointer user_data,
+-		    const char *cname)
++    preferences_cb (GtkAction *action,
++		    gpointer user_data)
+   {
+     Self *self = user_data;
+ 
+@@ -387,17 +413,15 @@ class LM:Applet from Panel:Applet
+   }
+ 
+   private void
+-    help_cb (BonoboUIComponent *component,
+-	     gpointer user_data,
+-	     const char *cname)
++    help_cb (GtkAction *action,
++	     gpointer user_data)
+   {
+     lm_show_help(NULL);
+   }
+ 
+   private void
+-    about_cb (BonoboUIComponent *component,
+-	      gpointer user_data,
+-	      const char *cname)
++    about_cb (GtkAction *action,
++	      gpointer user_data)
+   {
+     Self *self = user_data;
+ 
+@@ -497,9 +521,12 @@ class LM:Applet from Panel:Applet
+ 	break;
+       }
+ 
+-    icon = self_create_icon(self);
+-    gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
+-    gtk_widget_show(icon);
++    if (self->hosts->len <= 1)
++      {
++	icon = self_create_icon(self);
++	gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
++	gtk_widget_show(icon);
++      }
+ 
+     if (bar_graph)
+       {
+@@ -572,7 +599,7 @@ class LM:Applet from Panel:Applet
+   public int
+     factory_main (void)
+   {
+-    return panel_applet_factory_main("OAFIID:GNOME_LinkMonitorApplet_Factory",
++    return panel_applet_factory_main("LinkMonitorApplet_Factory",
+ 				     TYPE_SELF,
+ 				     self_factory_cb,
+ 				     NULL);
+@@ -692,16 +719,18 @@ class LM:Applet from Panel:Applet
+   public void
+     get_host_color (self,
+ 		    const char *name (check null),
+-		    GdkColor *color (check null))
++		    GdkRGBA *color (check null))
+   {
+     GtkWidget *widget = GTK_WIDGET(self);
+ 
+     if (! selfp->host_colors)
+       {
+ 	gtk_widget_ensure_style(widget);
+-	selfp->host_colors = lm_color_generator_generate(NUM_HOST_COLORS, &widget->style->base[GTK_STATE_NORMAL]);
++        GdkRGBA bg;
++        gtk_style_context_get_background_color (gtk_widget_get_style_context(widget), GTK_STATE_NORMAL, &bg);
++	selfp->host_colors = lm_color_generator_generate(NUM_HOST_COLORS, &bg);
+       }
+ 
+-    *color = g_array_index(selfp->host_colors, GdkColor, g_str_hash(name) % selfp->host_colors->len);
++    *color = g_array_index(selfp->host_colors, GdkRGBA, g_str_hash(name) % selfp->host_colors->len);
+   }
+ }
+diff --git a/src/lm-bar-graph.gob b/src/lm-bar-graph.gob
+index 22807d5..ea970a5 100644
+--- a/src/lm-bar-graph.gob
++++ b/src/lm-bar-graph.gob
+@@ -19,6 +19,7 @@
+ 
+ %headertop{
+ #include <gtk/gtk.h>
++#include <math.h>
+ #include "lm-decls.h"
+ %}
+ 
+@@ -61,7 +62,7 @@ class LM:Bar:Graph from Gtk:Widget
+   {
+     int i;
+ 
+-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
++    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);
+ 
+     lm_g_object_connect(self, selfp->applet,
+ 			"swapped-signal::notify::scale", gtk_widget_queue_draw, self,
+@@ -79,15 +80,21 @@ class LM:Bar:Graph from Gtk:Widget
+       }
+   }
+ 
+-  override (Gtk:Widget) void
++  private void
+     size_request (GtkWidget *widget, GtkRequisition *requisition)
+   {
+     Self *self = SELF(widget);
+     int num_bars;
+     int thickness;
+ 
++    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
++    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
++    GtkBorder padding, border;
++    gtk_style_context_get_padding(sc, gtk_widget_get_state_flags(widget), &padding);
++    gtk_style_context_get_border(sc, gtk_widget_get_state_flags(widget), &border);
++
+     num_bars = selfp->applet->hosts->len;
+-    thickness = LM_BOX_BORDER_WIDTH * 2
++    thickness = padding.left + border.left + padding.right + border.right
+       + BAR_PADDING * 2
+       + num_bars * BAR_THICKNESS
+       + (num_bars - 1) * BAR_PADDING;
+@@ -108,10 +115,32 @@ class LM:Bar:Graph from Gtk:Widget
+ 	g_assert_not_reached();
+ 	break;
+       }
++
++    gtk_style_context_remove_class (sc, LM_STYLE_FRAMED);
++  }
++
++  override (Gtk:Widget) void
++    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_width = *natural_width = requisition.width;
++  }
++
++  override (Gtk:Widget) void
++    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_height = *natural_height = requisition.height;
+   }
+ 
+   override (Gtk:Widget) gboolean
+-    expose_event (GtkWidget *widget, GdkEventExpose *event)
++    draw (GtkWidget *widget, cairo_t *cr)
+   {
+     Self *self = SELF(widget);
+     GdkRectangle entire_rect;
+@@ -120,55 +149,48 @@ class LM:Bar:Graph from Gtk:Widget
+     int bar_y;
+     int graph_width;
+     int graph_height;
+-    cairo_t *cr;
+     int i;
+ 
+-    if (! GTK_WIDGET_DRAWABLE(widget))
++    if (! gtk_widget_is_drawable(widget))
+       return FALSE;
+ 
+-    switch (selfp->orientation)
+-      {
+-      case LM_BAR_GRAPH_ORIENTATION_HORIZONTAL:
+-	entire_rect.x = widget->allocation.x;
+-	lm_widget_get_origin(widget, ALIGN, ALIGN, NULL, &entire_rect.y);
+-	entire_rect.width = widget->allocation.width;
+-	entire_rect.height = widget->requisition.height;
+-	break;
++    entire_rect.x = 0;
++    entire_rect.y = 0;
++    entire_rect.width = gtk_widget_get_allocated_width(widget);
++    entire_rect.height = gtk_widget_get_allocated_height(widget);
+ 
+-      case LM_BAR_GRAPH_ORIENTATION_VERTICAL:
+-	lm_widget_get_origin(widget, ALIGN, ALIGN, &entire_rect.x, NULL);
+-	entire_rect.y = widget->allocation.y;
+-	entire_rect.width = widget->requisition.width;
+-	entire_rect.height = widget->allocation.height;
+-	break;
+-
+-      default:
+-	g_assert_not_reached();
+-	break;
+-      }
++    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
++    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
++    GtkBorder padding, border;
++    gtk_style_context_get_padding(sc, gtk_widget_get_state_flags(widget), &padding);
++    gtk_style_context_get_border(sc, gtk_widget_get_state_flags(widget), &border);
+ 
+-    contents_rect.x = entire_rect.x + LM_BOX_BORDER_WIDTH;
+-    contents_rect.y = entire_rect.y + LM_BOX_BORDER_WIDTH;
+-    contents_rect.width = entire_rect.width - LM_BOX_BORDER_WIDTH * 2;
+-    contents_rect.height = entire_rect.height - LM_BOX_BORDER_WIDTH * 2;
++    contents_rect.x = entire_rect.x
++   	+ padding.left + border.left;
++    contents_rect.y = entire_rect.y
++    	+ padding.top + border.top;
++    contents_rect.width = entire_rect.width
++    	- padding.left - border.left - padding.right - border.right;
++    contents_rect.height = entire_rect.height
++    	- padding.top - border.top - padding.bottom - border.bottom;
+ 
+     bar_x = contents_rect.x + BAR_PADDING;
+     bar_y = contents_rect.y + BAR_PADDING;
+     graph_width = contents_rect.width - BAR_PADDING * 2;
+     graph_height = contents_rect.height - BAR_PADDING * 2;
+ 
+-    lm_paint_box(widget->window,
+-		 GTK_WIDGET_STATE(widget),
+-		 GTK_SHADOW_IN,
+-		 &event->area,
+-		 widget,
+-		 widget->style->base_gc[GTK_WIDGET_STATE(widget)],
+-		 entire_rect.x,
+-		 entire_rect.y,
+-		 entire_rect.width,
+-		 entire_rect.height);
++    gtk_render_background(sc, cr,
++		entire_rect.x,
++		entire_rect.y,
++		entire_rect.width,
++		entire_rect.height);
++    gtk_render_frame(sc, cr,
++		entire_rect.x,
++		entire_rect.y,
++		entire_rect.width,
++		entire_rect.height);
+ 
+-    cr = gdk_cairo_create(widget->window);
++    gtk_style_context_remove_class (sc, LM_STYLE_FRAMED);
+ 
+     cairo_set_line_width(cr, LINE_WIDTH);
+     cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
+@@ -202,8 +224,6 @@ class LM:Bar:Graph from Gtk:Widget
+ 	  }
+       }
+ 
+-    cairo_destroy(cr);
+-
+     return FALSE;
+   }
+ 
+@@ -218,14 +238,25 @@ class LM:Bar:Graph from Gtk:Widget
+   {
+     LMHost *base_host = LM_HOST(host);
+     GdkRectangle bar_rect;
+-    LMCairoColor fill_color;
+-    LMCairoColor border_color;
++    GdkRGBA border_color;
+     double fraction;
+ 
+     if (base_host->alive)
+       {
+-	fraction = ((double) base_host->roundtrip_time / 1000) / selfp->applet->scale;
+-	fraction = CLAMP(fraction, 0.0, 1.0);
++      	if (selfp->applet->logarithmic)
++	  {
++	    // time == scale       results in fraction = 1
++	    // time == scale/10000 results in fraction = 0
++	    // The 4 comes from log10(10000) = 4
++	    // The factor 1000 is the unit conversion
++	    fraction = (log10((double) base_host->roundtrip_time / (1000 * selfp->applet->scale)) + 4)/4;
++	    fraction = CLAMP(fraction, 0.0, 1.0);
++	  }
++	else
++	  {
++	    fraction = ((double) base_host->roundtrip_time / 1000) / selfp->applet->scale;
++	    fraction = CLAMP(fraction, 0.0, 1.0);
++	  }
+       }
+     else
+       fraction = 1.0;
+@@ -258,11 +289,10 @@ class LM:Bar:Graph from Gtk:Widget
+     cairo_clip(cr);
+     cairo_translate(cr, bar_rect.x, bar_rect.y);
+ 
+-    lm_gdk_color_to_cairo_color(&host->color, &fill_color);
+-    lm_cairo_color_shade(&fill_color, &border_color, 0.6);
++    lm_cairo_color_shade(&host->color, &border_color, 0.6);
+ 
+     /* draw the bar border */
+-    lm_cairo_set_source_color(cr, &border_color);
++    lm_cairo_set_source_rgba(cr, &border_color);
+     cairo_rectangle(cr,
+ 		    LINE_WIDTH,
+ 		    LINE_WIDTH,
+@@ -273,7 +303,7 @@ class LM:Bar:Graph from Gtk:Widget
+     /* if the host is alive, fill the bar */
+     if (base_host->alive)
+       {
+-	lm_cairo_set_source_color(cr, &fill_color);
++	lm_cairo_set_source_rgba(cr, &host->color);
+ 	cairo_fill(cr);
+       }
+ 
+diff --git a/src/lm-cell-renderer-color.gob b/src/lm-cell-renderer-color.gob
+index d3be47d..4a0487a 100644
+--- a/src/lm-cell-renderer-color.gob
++++ b/src/lm-cell-renderer-color.gob
+@@ -30,15 +30,13 @@
+ 
+ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+ {
+-  private GdkGC *gc unrefwith g_object_unref;
+-
+   private gboolean has_color;
+-  private GdkColor color;
++  private GdkRGBA color;
+ 
+-  property BOXED color (boxed_type = Gdk:Color)
++  property BOXED color (boxed_type = Gdk:RGBA)
+     set
+     {
+-      const GdkColor *p;
++      const GdkRGBA *p;
+ 
+       p = g_value_get_boxed(VAL);
+       if (p)
+@@ -68,7 +66,7 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+   private void
+     get_size (self,
+ 	      GtkWidget *widget,
+-	      GdkRectangle *cell_area,
++	      const GdkRectangle *cell_area,
+ 	      int *x_offset,
+ 	      int *y_offset,
+ 	      int *width,
+@@ -78,8 +76,14 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+     int _width;
+     int _height;
+ 
+-    _width = cell->xpad * 2 + SIZE;
+-    _height = cell->ypad * 2 + SIZE;
++    int _xpad,_ypad;
++    gtk_cell_renderer_get_padding(cell, &_xpad, &_ypad);
++
++    gfloat _xalign, _yalign;
++    gtk_cell_renderer_get_alignment(cell, &_xalign, &_yalign);
++
++    _width = _xpad * 2 + SIZE;
++    _height = _ypad * 2 + SIZE;
+ 
+     if (width)
+       *width = _width;
+@@ -91,12 +95,12 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+ 	if (x_offset)
+ 	  {
+ 	    *x_offset = ((gtk_widget_get_direction(widget) == GTK_TEXT_DIR_RTL) ?
+-			 (1.0 - cell->xalign) : cell->xalign) * (cell_area->width - _width);
++			 (1.0 - _xalign) : _xalign) * (cell_area->width - _width);
+ 	    *x_offset = MAX(*x_offset, 0);
+ 	  }
+ 	if (y_offset)
+ 	  {
+-	    *y_offset = cell->yalign * (cell_area->height - _height);
++	    *y_offset = _yalign * (cell_area->height - _height);
+ 	    *y_offset = MAX(*y_offset, 0);
+ 	  }
+       }
+@@ -112,7 +116,7 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+   override (Gtk:Cell:Renderer) void
+     get_size (GtkCellRenderer *cell,
+ 	      GtkWidget *widget,
+-	      GdkRectangle *cell_area,
++	      const GdkRectangle *cell_area,
+ 	      int *x_offset,
+ 	      int *y_offset,
+ 	      int *width,
+@@ -123,11 +127,10 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+ 
+   override (Gtk:Cell:Renderer) void
+     render (GtkCellRenderer *cell,
+-	    GdkDrawable *window,
++	    cairo_t *cr,
+ 	    GtkWidget *widget,
+-	    GdkRectangle *background_area,
+-	    GdkRectangle *cell_area,
+-	    GdkRectangle *expose_area,
++	    const GdkRectangle *background_area,
++	    const GdkRectangle *cell_area,
+ 	    GtkCellRendererState flags)
+   {
+     Self *self = SELF(cell);
+@@ -144,20 +147,23 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+ 
+     self_get_size(self, widget, cell_area, &x_offset, &y_offset, &width, &height);
+ 
+-    width -= cell->xpad * 2;
+-    height -= cell->ypad * 2;
++    int _xpad,_ypad;
++    gtk_cell_renderer_get_padding(cell, &_xpad, &_ypad);
++
++    width -= _xpad * 2;
++    height -= _ypad * 2;
+ 
+     if (width <= 0 || height <= 0)
+       return;
+ 
+-    x = cell_area->x + x_offset + cell->xpad;
+-    y = cell_area->y + y_offset + cell->ypad;
++    x = cell_area->x + x_offset + _xpad;
++    y = cell_area->y + y_offset + _ypad;
+ 
+-    if (! cell->sensitive)
++    if (! gtk_cell_renderer_get_sensitive(cell))
+       state = GTK_STATE_INSENSITIVE;
+     else if ((flags & GTK_CELL_RENDERER_SELECTED) != 0)
+       {
+-	if (GTK_WIDGET_HAS_FOCUS(widget))
++	if (gtk_widget_has_focus(widget))
+ 	  state = GTK_STATE_SELECTED;
+ 	else
+ 	  state = GTK_STATE_ACTIVE;
+@@ -165,17 +171,12 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+     else
+       state = GTK_STATE_NORMAL;
+ 
+-    if (! selfp->gc)
+-      selfp->gc = gdk_gc_new(window);
+-
+-    gdk_gc_set_rgb_fg_color(selfp->gc, &selfp->color);
++    lm_cairo_set_source_rgba(cr, &selfp->color);
+ 
+-    lm_paint_box(window,
++    lm_paint_box(cr,
+ 		 state,
+ 		 GTK_SHADOW_IN,
+-		 expose_area,
+ 		 widget,
+-		 selfp->gc,
+ 		 x,
+ 		 y,
+ 		 width,
+@@ -187,8 +188,8 @@ class LM:Cell:Renderer:Color from Gtk:Cell:Renderer
+ 	      GdkEvent *event,
+ 	      GtkWidget *widget,
+ 	      const char *path,
+-	      GdkRectangle *background_area,
+-	      GdkRectangle *cell_area,
++	      const GdkRectangle *background_area,
++	      const GdkRectangle *cell_area,
+ 	      GtkCellRendererState flags)
+   {
+     Self *self = SELF(cell);
+diff --git a/src/lm-color-generator.c b/src/lm-color-generator.c
+index 8a244ab..e6cb301 100644
+--- a/src/lm-color-generator.c
++++ b/src/lm-color-generator.c
+@@ -40,42 +40,42 @@ typedef struct
+   int blue;
+ } W3Color;
+ 
+-static const GdkColor seed_colors[] = {
+-  { 0, 64764,	59881,	20303	}, /* Butter #1 */
+-  { 0, 60909,	54484,	0	}, /* Butter #2 */
+-  { 0, 50372,	41120,	0	}, /* Butter #3 */
+-  { 0, 64764,	44975,	15934	}, /* Orange #1 */
+-  { 0, 62965,	31097,	0	}, /* Orange #2 */
+-  { 0, 52942,	23644,	0	}, /* Orange #3 */
+-  { 0, 59811,	47545,	28270	}, /* Chocolate #1 */
+-  { 0, 49601,	32125,	4369	}, /* Chocolate #2 */
+-  { 0, 36751,	22873,	514	}, /* Chocolate #3 */
+-  { 0, 35466,	58082,	13364	}, /* Chameleon #1 */
+-  { 0, 29555,	53970,	5654	}, /* Chameleon #2 */
+-  { 0, 20046,	39578,	1542	}, /* Chameleon #3 */
+-  { 0, 29289,	40863,	53199	}, /* Sky Blue #1 */
+-  { 0, 13364,	25957,	42148	}, /* Sky Blue #2 */
+-  { 0, 8224,	19018,	34695	}, /* Sky Blue #3 */
+-  { 0, 44461,	32639,	43167	}, /* Plum #1 */
+-  { 0, 30069,	20560,	31611	}, /* Plum #2 */
+-  { 0, 23644,	13621,	26214	}, /* Plum #3 */
+-  { 0, 61423,	10537,	10537	}, /* Scarlet Red #1 */
+-  { 0, 52428,	0,	0	}, /* Scarlet Red #2 */
+-  { 0, 42148,	0,	0	}, /* Scarlet Red #3 */
+-  { 0, 34952,	35466,	34181	}, /* Aluminium #4*/
+-  { 0, 21845,	22359,	21331	}, /* Aluminium #5*/
+-  { 0, 11822,	13364,	13878	}  /* Aluminium #6*/
++static const GdkRGBA seed_colors[] = {
++  {  0.0 / 65535.0,  64764.0 / 65535.0, 	59881.0 / 65535.0, 	20303.0 / 65535.0	}, /* Butter #1 */
++  {  0.0 / 65535.0,  60909.0 / 65535.0, 	54484.0 / 65535.0, 	0.0 / 65535.0	}, /* Butter #2 */
++  {  0.0 / 65535.0,  50372.0 / 65535.0, 	41120.0 / 65535.0, 	0.0 / 65535.0	}, /* Butter #3 */
++  {  0.0 / 65535.0,  64764.0 / 65535.0, 	44975.0 / 65535.0, 	15934.0 / 65535.0	}, /* Orange #1 */
++  {  0.0 / 65535.0,  62965.0 / 65535.0, 	31097.0 / 65535.0, 	0.0 / 65535.0	}, /* Orange #2 */
++  {  0.0 / 65535.0,  52942.0 / 65535.0, 	23644.0 / 65535.0, 	0.0 / 65535.0	}, /* Orange #3 */
++  {  0.0 / 65535.0,  59811.0 / 65535.0, 	47545.0 / 65535.0, 	28270.0 / 65535.0	}, /* Chocolate #1 */
++  {  0.0 / 65535.0,  49601.0 / 65535.0, 	32125.0 / 65535.0, 	4369.0 / 65535.0	}, /* Chocolate #2 */
++  {  0.0 / 65535.0,  36751.0 / 65535.0, 	22873.0 / 65535.0, 	514.0 / 65535.0	}, /* Chocolate #3 */
++  {  0.0 / 65535.0,  35466.0 / 65535.0, 	58082.0 / 65535.0, 	13364.0 / 65535.0	}, /* Chameleon #1 */
++  {  0.0 / 65535.0,  29555.0 / 65535.0, 	53970.0 / 65535.0, 	5654.0 / 65535.0	}, /* Chameleon #2 */
++  {  0.0 / 65535.0,  20046.0 / 65535.0, 	39578.0 / 65535.0, 	1542.0 / 65535.0	}, /* Chameleon #3 */
++  {  0.0 / 65535.0,  29289.0 / 65535.0, 	40863.0 / 65535.0, 	53199.0 / 65535.0	}, /* Sky Blue #1 */
++  {  0.0 / 65535.0,  13364.0 / 65535.0, 	25957.0 / 65535.0, 	42148.0 / 65535.0	}, /* Sky Blue #2 */
++  {  0.0 / 65535.0,  8224.0 / 65535.0, 	19018.0 / 65535.0, 	34695.0 / 65535.0	}, /* Sky Blue #3 */
++  {  0.0 / 65535.0,  44461.0 / 65535.0, 	32639.0 / 65535.0, 	43167.0 / 65535.0	}, /* Plum #1 */
++  {  0.0 / 65535.0,  30069.0 / 65535.0, 	20560.0 / 65535.0, 	31611.0 / 65535.0	}, /* Plum #2 */
++  {  0.0 / 65535.0,  23644.0 / 65535.0, 	13621.0 / 65535.0, 	26214.0 / 65535.0	}, /* Plum #3 */
++  {  0.0 / 65535.0,  61423.0 / 65535.0, 	10537.0 / 65535.0, 	10537.0 / 65535.0	}, /* Scarlet Red #1 */
++  {  0.0 / 65535.0,  52428.0 / 65535.0, 	0.0 / 65535.0, 	0.0 / 65535.0	}, /* Scarlet Red #2 */
++  {  0.0 / 65535.0,  42148.0 / 65535.0, 	0.0 / 65535.0, 	0.0 / 65535.0	}, /* Scarlet Red #3 */
++  {  0.0 / 65535.0,  34952.0 / 65535.0, 	35466.0 / 65535.0, 	34181.0 / 65535.0	}, /* Aluminium #4*/
++  {  0.0 / 65535.0,  21845.0 / 65535.0, 	22359.0 / 65535.0, 	21331.0 / 65535.0	}, /* Aluminium #5*/
++  {  0.0 / 65535.0,  11822.0 / 65535.0, 	13364.0 / 65535.0, 	13878.0 / 65535.0	}  /* Aluminium #6*/
+ };
+ 
+ static void
+-w3_color_init (W3Color *out, const GdkColor *in)
++w3_color_init (W3Color *out, const GdkRGBA *in)
+ {
+   g_return_if_fail(out != NULL);
+   g_return_if_fail(in != NULL);
+ 
+-  out->red = in->red / 256;
+-  out->green = in->green / 256;
+-  out->blue = in->blue / 256;
++  out->red = in->red * 256.0;
++  out->green = in->green * 256.0;
++  out->blue = in->blue * 256.0;
+ }
+ 
+ static int
+@@ -87,8 +87,8 @@ w3_color_get_brightness (const W3Color *color)
+ }
+ 
+ static gboolean
+-color_is_visible (const GdkColor *fg,
+-		  const GdkColor *bg,
++color_is_visible (const GdkRGBA *fg,
++		  const GdkRGBA *bg,
+ 		  int color_contrast,
+ 		  int brightness_contrast)
+ {
+@@ -112,7 +112,7 @@ color_is_visible (const GdkColor *fg,
+ }
+ 
+ GArray *
+-lm_color_generator_generate (int count, const GdkColor *bg)
++lm_color_generator_generate (int count, const GdkRGBA *bg)
+ {
+   GArray *colors;
+   LMTimeSpan breakout_time;
+@@ -123,11 +123,11 @@ lm_color_generator_generate (int count, const GdkColor *bg)
+ 
+   srand(bg->red + bg->green + bg->blue + 1);
+ 
+-  colors = g_array_new(FALSE, FALSE, sizeof(GdkColor));
++  colors = g_array_new(FALSE, FALSE, sizeof(GdkRGBA));
+ 
+   for (i = 0; i < G_N_ELEMENTS(seed_colors) && colors->len < count; i++)
+     {
+-      const GdkColor *color = &seed_colors[i];
++      const GdkRGBA *color = &seed_colors[i];
+ 
+       if (color_is_visible(color, bg, MIN_COLOR_CONTRAST, MIN_BRIGHTNESS_CONTRAST))
+ 	g_array_append_val(colors, *color);
+@@ -137,7 +137,7 @@ lm_color_generator_generate (int count, const GdkColor *bg)
+ 
+   while (colors->len < count)
+     {
+-      GdkColor color = { 0, rand() % 0xffff, rand() % 0xffff, rand() % 0xffff };
++      GdkRGBA color = { 0.0, (rand() % 0xffff)/65535.0, (rand() % 0xffff)/65535.0, (rand() % 0xffff)/65535.0 };
+ 
+       if (lm_get_ticks() >= breakout_time)
+ 	{
+@@ -145,7 +145,8 @@ lm_color_generator_generate (int count, const GdkColor *bg)
+ 	  break;
+ 	}
+ 
+-      if (color_is_visible(&color, bg, MIN_COLOR_CONTRAST, MIN_BRIGHTNESS_CONTRAST))
++      // GTK3TODO
++      if (1) // (color_is_visible(&color, bg, MIN_COLOR_CONTRAST, MIN_BRIGHTNESS_CONTRAST))
+ 	g_array_append_val(colors, color);
+     }
+ 
+diff --git a/src/lm-color-generator.h b/src/lm-color-generator.h
+index 4dc5f45..fedea0e 100644
+--- a/src/lm-color-generator.h
++++ b/src/lm-color-generator.h
+@@ -28,6 +28,6 @@
+ 
+ #include <gtk/gtk.h>
+ 
+-GArray *lm_color_generator_generate (int count, const GdkColor *bg);
++GArray *lm_color_generator_generate (int count, const GdkRGBA *bg);
+ 
+ #endif /* _LM_COLOR_GENERATOR_H */
+diff --git a/src/lm-dialog.gob b/src/lm-dialog.gob
+index bf855b2..ef1a30f 100644
+--- a/src/lm-dialog.gob
++++ b/src/lm-dialog.gob
+@@ -26,7 +26,5 @@ class LM:Dialog from Gtk:Dialog (abstract)
+   init (self)
+   {
+     gtk_container_set_border_width(GTK_CONTAINER(self), 5);
+-    gtk_dialog_set_has_separator(GTK_DIALOG(self), FALSE);
+-    gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(self)->vbox), 2);
+   }
+ }
+diff --git a/src/lm-framed-image.gob b/src/lm-framed-image.gob
+index cd85704..563189b 100644
+--- a/src/lm-framed-image.gob
++++ b/src/lm-framed-image.gob
+@@ -44,55 +44,85 @@ class LM:Framed:Image from Gtk:Widget
+ 
+   init (self)
+   {
+-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
++    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);    
+   }
+ 
+-  override (Gtk:Widget) void
++  private void
+     size_request (GtkWidget *widget, GtkRequisition *requisition)
+   {
+     Self *self = SELF(widget);
+ 
++    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
++    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
++
++    GtkBorder border;
++    gtk_style_context_get_border (sc, gtk_widget_get_state_flags (widget), &border);
++
+     if (selfp->pixbuf)
+       {
+-	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
+-	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + LM_BOX_BORDER_WIDTH * 2;
++	requisition->width = gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right;
++	requisition->height = gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom;
+       }
+     else
+       {
+ 	requisition->width = 0;
+ 	requisition->height = 0;
+       }
++
++    gtk_style_context_remove_class (sc, LM_STYLE_FRAMED);
++  }
++
++  override (Gtk:Widget) void
++    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_width = *natural_width = requisition.width;
+   }
+ 
++  override (Gtk:Widget) void
++    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_height = *natural_height = requisition.height;
++  }
++
++
+   override (Gtk:Widget) gboolean
+-    expose_event (GtkWidget *widget, GdkEventExpose *event)
++    draw (GtkWidget *widget, cairo_t *cr)
+   {
+     Self *self = SELF(widget);
+     int x;
+     int y;
+ 
+-    if (! GTK_WIDGET_DRAWABLE(widget) || ! selfp->pixbuf)
++    if (! selfp->pixbuf)
+       return FALSE;
+ 
+     lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
+ 
+-    gtk_paint_shadow(widget->style,
+-		     widget->window,
+-		     GTK_WIDGET_STATE(widget),
+-		     GTK_SHADOW_IN,
+-		     &event->area,
+-		     widget,
+-		     NULL,
+-		     x,
+-		     y,
+-		     widget->requisition.width,
+-		     widget->requisition.height);
++    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
++    gtk_style_context_add_class (sc, LM_STYLE_FLAG);
++    GtkBorder border;
++    gtk_style_context_get_border (sc, gtk_widget_get_state_flags (widget), &border);
++    
++    gtk_render_background(sc, cr, x, y,
++		     gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right,
++		     gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom);
++    gtk_render_frame(sc, cr, x, y,
++		     gdk_pixbuf_get_width(selfp->pixbuf) + border.left + border.right,
++		     gdk_pixbuf_get_height(selfp->pixbuf) + border.top + border.bottom);
++
++    gtk_style_context_remove_class (sc, LM_STYLE_FLAG);
+ 
+-    lm_paint_pixbuf(widget->window,
++    lm_paint_pixbuf(cr,
+ 		    selfp->pixbuf,
+-		    &event->area,
+-		    x + LM_BOX_BORDER_WIDTH,
+-		    y + LM_BOX_BORDER_WIDTH);
++		    x + border.left,
++		    y + border.top);
+ 
+     return FALSE;
+   }
+diff --git a/src/lm-host-frontend.gob b/src/lm-host-frontend.gob
+index 1e88b0f..88638e0 100644
+--- a/src/lm-host-frontend.gob
++++ b/src/lm-host-frontend.gob
+@@ -28,7 +28,7 @@
+ typedef struct
+ {
+   char		*name;
+-  GdkColor	color;
++  GdkRGBA	color;
+ } LMHostFrontendConfiguration;
+ %}
+ 
+@@ -51,11 +51,11 @@ typedef struct
+ 
+ class LM:Host:Frontend from LM:Host
+ {
+-  public GdkColor color;
++  public GdkRGBA color;
+   property BOXED color (export,
+ 			flags = CONSTRUCT,
+-			boxed_type = Gdk:Color,
+-			type = const GdkColor *)
++			boxed_type = Gdk:RGBA,
++			type = const GdkRGBA *)
+     set
+     {
+       lm_g_value_get_mandatory_color(VAL, &self->color);
+@@ -328,9 +328,9 @@ class LM:Host:Frontend from LM:Host
+   public LMHostFrontend *
+     new (LM:Applet *applet (check null type),
+ 	 const char *name (check null),
+-	 const GdkColor *color)
++	 const GdkRGBA *color)
+   {
+-    GdkColor auto_color;
++    GdkRGBA auto_color;
+ 
+     if (! color)
+       {
+@@ -386,17 +386,17 @@ class LM:Host:Frontend from LM:Host
+ 	g_string_append_c(str, host->name[i]);
+ 
+     g_string_append_printf(str, "|#%02X%02X%02X",
+-			   self->color.red / 256,
+-			   self->color.green / 256,
+-			   self->color.blue / 256);
++			   (int)(self->color.red * 255),
++			   (int)(self->color.green * 255),
++			   (int)(self->color.blue * 255));
+ 
+     return g_string_free(str, FALSE);
+   }
+ 
+-  private guint16
++  private gdouble
+     parse_color_channel (const char *str)
+   {
+-    return (g_ascii_xdigit_value(str[0]) * 16 + g_ascii_xdigit_value(str[1])) * 256;
++    return (g_ascii_xdigit_value(str[0]) * 16 + g_ascii_xdigit_value(str[1])) / 255.0;
+   }
+ 
+   public LMHostFrontend *
+@@ -429,7 +429,7 @@ class LM:Host:Frontend from LM:Host
+ 
+     if (color_str)
+       {
+-	GdkColor color;
++	GdkRGBA color;
+ 
+ 	if (color_str[0] != '#')
+ 	  goto end;
+@@ -441,7 +441,7 @@ class LM:Host:Frontend from LM:Host
+ 	if (color_str[7] != 0)
+ 	  goto end;
+ 
+-	color.pixel = 0;
++	color.alpha = 1.0;
+ 	color.red = self_parse_color_channel(&color_str[1]);
+ 	color.green = self_parse_color_channel(&color_str[3]);
+ 	color.blue = self_parse_color_channel(&color_str[5]);
+diff --git a/src/lm-host-view.gob b/src/lm-host-view.gob
+index f7b1978..51756ac 100644
+--- a/src/lm-host-view.gob
++++ b/src/lm-host-view.gob
+@@ -87,18 +87,18 @@ class LM:Host:View from Gtk:Tree:View
+     binding_set = gtk_binding_set_by_class(class);
+ 
+     /* Delete removes a row */
+-    gtk_binding_entry_add_signal(binding_set, GDK_Delete, 0, "activate-remove", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_KP_Delete, 0, "activate-remove", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Delete, 0, "activate-remove", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_KP_Delete, 0, "activate-remove", 0);
+ 
+     /* HIG 2.0 cut/copy/paste shortcuts */
+-    gtk_binding_entry_add_signal(binding_set, GDK_x, GDK_CONTROL_MASK, "activate-cut", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_c, GDK_CONTROL_MASK, "activate-copy", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_v, GDK_CONTROL_MASK, "activate-paste", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_x, GDK_CONTROL_MASK, "activate-cut", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_c, GDK_CONTROL_MASK, "activate-copy", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_v, GDK_CONTROL_MASK, "activate-paste", 0);
+ 
+     /* cut/copy/paste shortcuts taken from gtkentry.c */
+-    gtk_binding_entry_add_signal(binding_set, GDK_Delete, GDK_SHIFT_MASK, "activate-cut", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_Insert, GDK_CONTROL_MASK, "activate-copy", 0);
+-    gtk_binding_entry_add_signal(binding_set, GDK_Insert, GDK_SHIFT_MASK, "activate-paste", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Delete, GDK_SHIFT_MASK, "activate-cut", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Insert, GDK_CONTROL_MASK, "activate-copy", 0);
++    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Insert, GDK_SHIFT_MASK, "activate-paste", 0);
+   }
+ 
+   constructor (self)
+@@ -139,7 +139,7 @@ class LM:Host:View from Gtk:Tree:View
+ 
+     store = gtk_list_store_new(N_COLUMNS,
+ 			       LM_TYPE_HOST_FRONTEND,
+-			       GDK_TYPE_COLOR,
++			       GDK_TYPE_RGBA,
+ 			       G_TYPE_STRING);
+     gtk_tree_view_set_model(GTK_TREE_VIEW(self), GTK_TREE_MODEL(store));
+ 
+@@ -516,7 +516,7 @@ class LM:Host:View from Gtk:Tree:View
+ 	GSList *host_configs;
+ 	GSList *l;
+ 
+-	memcpy(&host_configs, data->data, data->length);
++	memcpy(&host_configs, gtk_selection_data_get_data(data), gtk_selection_data_get_length(data));
+ 
+ 	LM_LIST_FOREACH(l, host_configs)
+ 	  {
+@@ -608,7 +608,7 @@ class LM:Host:View from Gtk:Tree:View
+     g_assert(status == TRUE);
+ 
+     gtk_tree_model_get(model, &iter, COLUMN_HOST, &host, -1);
+-    gtk_color_selection_set_current_color(GTK_COLOR_SELECTION(GTK_COLOR_SELECTION_DIALOG(selfp->color_dialog)->colorsel), &host->color);
++    gtk_color_selection_set_current_rgba(GTK_COLOR_SELECTION(gtk_color_selection_dialog_get_color_selection(GTK_COLOR_SELECTION_DIALOG(selfp->color_dialog))), &host->color);
+     g_object_unref(host);
+ 
+     gtk_tree_row_reference_free(selfp->color_dialog_row_reference);
+@@ -635,13 +635,13 @@ class LM:Host:View from Gtk:Tree:View
+ 
+     if (response == GTK_RESPONSE_OK)
+       {
+-	GdkColor color;
++	GdkRGBA color;
+ 	GtkTreeModel *model;
+ 	GtkTreeIter iter;
+ 	gboolean status;
+ 	LMHostFrontend *host;
+ 
+-	gtk_color_selection_get_current_color(GTK_COLOR_SELECTION(GTK_COLOR_SELECTION_DIALOG(dialog)->colorsel), &color);
++	gtk_color_selection_get_current_rgba(GTK_COLOR_SELECTION(gtk_color_selection_dialog_get_color_selection(GTK_COLOR_SELECTION_DIALOG(dialog))), &color);
+ 
+ 	model = gtk_tree_view_get_model(GTK_TREE_VIEW(self));
+ 
+diff --git a/src/lm-line-graph-icon.gob b/src/lm-line-graph-icon.gob
+index 9d1441e..c6b2d18 100644
+--- a/src/lm-line-graph-icon.gob
++++ b/src/lm-line-graph-icon.gob
+@@ -54,20 +54,41 @@ class LM:Line:Graph:Icon from Gtk:Widget
+ 
+   constructor (self)
+   {
+-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
++    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);
+ 
+     lm_g_object_connect(self, selfp->host,
+ 			"swapped-signal::notify::color", gtk_widget_queue_draw, self,
+ 			NULL);
+   }
+ 
+-  override (Gtk:Widget) void
++  private void
+     size_request (GtkWidget *widget, GtkRequisition *requisition)
+   {
+     requisition->width = WIDTH;
+     requisition->height = HEIGHT;
+   }
+ 
++  override (Gtk:Widget) void
++    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_width = *natural_width = requisition.width;
++  }
++
++  override (Gtk:Widget) void
++    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_height = *natural_height = requisition.height;
++  }
++
++
+   /*
+    * We don't use cairo transforms because they make it cumbersome to
+    * specify an uniform line width with a deforming scale (see
+@@ -80,28 +101,18 @@ class LM:Line:Graph:Icon from Gtk:Widget
+   {
+     GtkWidget *widget = GTK_WIDGET(self);
+ 
+-    out->x = widget->allocation.x
+-      + ((widget->allocation.width - widget->requisition.width) * XALIGN)
+-      + (in->x * widget->requisition.width);
+-    out->y = widget->allocation.y
+-      + ((widget->allocation.height - widget->requisition.height) * YALIGN)
+-      + (in->y * widget->requisition.height);
++    out->x = in->x * gtk_widget_get_allocated_width(widget);
++    out->y = in->y * gtk_widget_get_allocated_height(widget);
+   }
+ 
+   override (Gtk:Widget) gboolean
+-    expose_event (GtkWidget *widget, GdkEventExpose *event)
++    draw (GtkWidget *widget, cairo_t *cr)
+   {
+     Self *self = SELF(widget);
+-    cairo_t *cr;
+     Point p;
+     int i;
+ 
+-    if (! GTK_WIDGET_DRAWABLE(widget))
+-      return FALSE;
+-
+-    cr = gdk_cairo_create(widget->window);
+-
+-    gdk_cairo_set_source_color(cr, &selfp->host->color);
++    lm_cairo_set_source_rgba(cr, &selfp->host->color);
+ 
+     cairo_set_line_width(cr, LINE_WIDTH);
+     cairo_set_line_cap(cr, CAIRO_LINE_CAP_BUTT);
+@@ -118,8 +129,6 @@ class LM:Line:Graph:Icon from Gtk:Widget
+ 
+     cairo_stroke(cr);
+ 
+-    cairo_destroy(cr);
+-
+     return FALSE;
+   }
+ 
+diff --git a/src/lm-line-graph.gob b/src/lm-line-graph.gob
+index afb7cef..8fe7d5d 100644
+--- a/src/lm-line-graph.gob
++++ b/src/lm-line-graph.gob
+@@ -46,9 +46,15 @@
+ #define X_MINOR_SUBDIVISIONS		12
+ #define X_LABELS			(X_MAJOR_SUBDIVISIONS + 1)
+ 
+-#define Y_MAJOR_SUBDIVISIONS		5
+-#define Y_MINOR_SUBDIVISIONS		10
+-#define Y_LABELS			(Y_MAJOR_SUBDIVISIONS + 1)
++#define Y_MAJOR_SUBDIVISIONS_LINEAR	5
++#define Y_MINOR_SUBDIVISIONS_LINEAR	10
++#define Y_LABELS_LINEAR			(Y_MAJOR_SUBDIVISIONS_LINEAR + 1)
++
++#define Y_MAJOR_SUBDIVISIONS_LOGARITHMIC	4
++#define Y_MINOR_SUBDIVISIONS_LOGARITHMIC	8
++#define Y_LABELS_LOGARITHMIC			(Y_MAJOR_SUBDIVISIONS_LOGARITHMIC + 1)
++
++#define Y_LABELS_MAX			Y_LABELS_LINEAR
+ 
+ typedef struct
+ {
+@@ -84,7 +90,7 @@ class LM:Line:Graph from Gtk:Widget
+   private unsigned int update_not_done_timeout_id;
+ 
+   private LabelInfo x_labels[X_LABELS];
+-  private LabelInfo y_labels[Y_LABELS];
++  private LabelInfo y_labels[Y_LABELS_MAX];
+ 
+   /* total widget size */
+   private int width;
+@@ -94,8 +100,6 @@ class LM:Line:Graph from Gtk:Widget
+   private int graph_x;
+   private int graph_y;
+ 
+-  private GdkGC *subdivision_gc unrefwith g_object_unref;
+-
+   class_init (class)
+   {
+     GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(class);
+@@ -104,13 +108,13 @@ class LM:Line:Graph from Gtk:Widget
+ 					    g_param_spec_boxed("minor-subdivision-color",
+ 							       NULL,
+ 							       NULL,
+-							       GDK_TYPE_COLOR,
++							       GDK_TYPE_RGBA,
+ 							       G_PARAM_READABLE));
+     gtk_widget_class_install_style_property(widget_class,
+ 					    g_param_spec_boxed("major-subdivision-color",
+ 							       NULL,
+ 							       NULL,
+-							       GDK_TYPE_COLOR,
++							       GDK_TYPE_RGBA,
+ 							       G_PARAM_READABLE));
+   }
+ 
+@@ -118,7 +122,7 @@ class LM:Line:Graph from Gtk:Widget
+   {
+     int i;
+ 
+-    GTK_WIDGET_SET_FLAGS(self, GTK_NO_WINDOW);
++    gtk_widget_set_has_window(GTK_WIDGET(self), FALSE);
+ 
+     g_object_connect(self,
+ 		     "signal::style-set", self_clear_labels_and_queue_resize, self,
+@@ -161,7 +165,7 @@ class LM:Line:Graph from Gtk:Widget
+     self_clear_labels_and_queue_resize(self);
+   }
+ 
+-  override (Gtk:Widget) void
++  private void
+     size_request (GtkWidget *widget, GtkRequisition *requisition)
+   {
+     Self *self = SELF(widget);
+@@ -172,6 +176,26 @@ class LM:Line:Graph from Gtk:Widget
+     requisition->height = selfp->height;
+   }
+ 
++  override (Gtk:Widget) void
++    get_preferred_width (GtkWidget *widget, gint *minimal_width, gint *natural_width)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_width = *natural_width = requisition.width;
++  }
++
++  override (Gtk:Widget) void
++    get_preferred_height (GtkWidget *widget, gint *minimal_height, gint *natural_height)
++  {
++    GtkRequisition requisition;
++
++    self_size_request (widget, &requisition);
++
++    *minimal_height = *natural_height = requisition.height;
++  }
++
+   private void
+     clear_labels (self)
+   {
+@@ -179,7 +203,14 @@ class LM:Line:Graph from Gtk:Widget
+       return;
+ 
+     self_clear_labels_real(self, selfp->x_labels, X_LABELS);
+-    self_clear_labels_real(self, selfp->y_labels, Y_LABELS);
++    if (selfp->applet->logarithmic)
++      {
++	self_clear_labels_real(self, selfp->y_labels, Y_LABELS_LOGARITHMIC);
++      }
++    else
++      {
++	self_clear_labels_real(self, selfp->y_labels, Y_LABELS_LINEAR);
++      }
+   }
+ 
+   private void
+@@ -254,26 +285,52 @@ class LM:Line:Graph from Gtk:Widget
+ 
+     /* create vertical labels */
+ 
+-    step = (double) selfp->applet->scale / Y_MAJOR_SUBDIVISIONS;
++    if (selfp->applet->logarithmic)
++      {
++	for (i = 0; i < Y_LABELS_LOGARITHMIC; i++)
++	  {
++	    LabelInfo *info = &selfp->y_labels[i];
++	    char *str;
+ 
+-    /* display a suitable number of decimals */
+-    step_usec = selfp->applet->scale * 1000 / Y_MAJOR_SUBDIVISIONS;
+-    if (step_usec % 1000 == 0)
+-      y_precision = 0;
+-    else if (step_usec % 100 == 0)
+-      y_precision = 1;
+-    else
+-      y_precision = 2;
++	    step = (double) selfp->applet->scale * pow(10,-i);
++	    /* display a suitable number of decimals */
++	    step_usec = (double) selfp->applet->scale * 1000 * pow(10,-i);
+ 
+-    for (i = 0; i < Y_LABELS; i++)
++	    if (step_usec % 1000 == 0)
++	      y_precision = 0;
++	    else if (step_usec % 100 == 0)
++	      y_precision = 1;
++	    else
++	      y_precision = 2;
++
++	    str = g_strdup_printf(_("%.*f ms"), y_precision, step);
++	    info->layout = self_create_pango_layout(self, str, &y_label_width, &y_label_height);
++	    g_free(str);
++	  }
++	}
++      else
+       {
+-	LabelInfo *info = &selfp->y_labels[i];
+-	char *str;
++	step = (double) selfp->applet->scale / Y_MAJOR_SUBDIVISIONS_LINEAR;
+ 
+-	str = g_strdup_printf(_("%.*f ms"), y_precision, step * (Y_MAJOR_SUBDIVISIONS - i));
+-	info->layout = self_create_pango_layout(self, str, &y_label_width, &y_label_height);
+-	g_free(str);
+-      }
++	/* display a suitable number of decimals */
++	step_usec = selfp->applet->scale * 1000 / Y_MAJOR_SUBDIVISIONS_LINEAR;
++	if (step_usec % 1000 == 0)
++	  y_precision = 0;
++	else if (step_usec % 100 == 0)
++	  y_precision = 1;
++	else
++	  y_precision = 2;
++
++	for (i = 0; i < Y_LABELS_LINEAR; i++)
++	  {
++	    LabelInfo *info = &selfp->y_labels[i];
++	    char *str;
++
++	    str = g_strdup_printf(_("%.*f ms"), y_precision, step * (Y_MAJOR_SUBDIVISIONS_LINEAR - i));
++	    info->layout = self_create_pango_layout(self, str, &y_label_width, &y_label_height);
++	    g_free(str);
++	  }
++	}
+ 
+     /* compute margins, graph size and position */
+ 
+@@ -306,17 +363,33 @@ class LM:Line:Graph from Gtk:Widget
+ 
+     /* compute vertical labels positions */
+ 
+-    step_pixels = LM_LINE_GRAPH_HEIGHT / Y_MAJOR_SUBDIVISIONS;
++    if (selfp->applet->logarithmic) {
++	step_pixels = LM_LINE_GRAPH_HEIGHT / Y_MAJOR_SUBDIVISIONS_LOGARITHMIC;
++
++	for (i = 0; i < Y_LABELS_LOGARITHMIC; i++)
++	  {
++	    LabelInfo *info = &selfp->y_labels[i];
++
++	    pango_layout_get_pixel_extents(info->layout, NULL, &rect);
+ 
+-    for (i = 0; i < Y_LABELS; i++)
++	    info->x = selfp->graph_x - GRAPH_MARGIN - rect.width;
++	    info->y = selfp->graph_y + step_pixels * i - rect.height / 2;
++	  }
++      }	  
++    else
+       {
+-	LabelInfo *info = &selfp->y_labels[i];
++	step_pixels = LM_LINE_GRAPH_HEIGHT / Y_MAJOR_SUBDIVISIONS_LINEAR;
+ 
+-	pango_layout_get_pixel_extents(info->layout, NULL, &rect);
++	for (i = 0; i < Y_LABELS_LINEAR; i++)
++	  {
++	    LabelInfo *info = &selfp->y_labels[i];
+ 
+-	info->x = selfp->graph_x - GRAPH_MARGIN - rect.width;
+-	info->y = selfp->graph_y + step_pixels * i - rect.height / 2;
+-      }
++	    pango_layout_get_pixel_extents(info->layout, NULL, &rect);
++
++	    info->x = selfp->graph_x - GRAPH_MARGIN - rect.width;
++	    info->y = selfp->graph_y + step_pixels * i - rect.height / 2;
++	  }
++      }	  
+ 
+     /* update the time labels when the second will change */
+ 
+@@ -353,7 +426,7 @@ class LM:Line:Graph from Gtk:Widget
+   }
+ 
+   override (Gtk:Widget) gboolean
+-    expose_event (GtkWidget *widget, GdkEventExpose *event)
++    draw (GtkWidget *widget, cairo_t *cr)
+   {
+     Self *self = SELF(widget);
+     int x;
+@@ -363,46 +436,45 @@ class LM:Line:Graph from Gtk:Widget
+     int graph_area_x;
+     int graph_area_y;
+ 
+-    if (! GTK_WIDGET_DRAWABLE(widget))
+-      return FALSE;
+-
+     lm_source_clear(&selfp->update_not_done_timeout_id);
+ 
+     self_ensure_labels(self);
+ 
+     lm_widget_get_origin(widget, XALIGN, YALIGN, &x, &y);
+ 
+-    self_draw_labels(self, event, x, y);
++    self_draw_labels(self, cr, x, y);
+ 
+     graph_x = x + selfp->graph_x;
+     graph_y = y + selfp->graph_y;
+ 
+-    lm_paint_box(widget->window,
+-		 GTK_WIDGET_STATE(widget),
+-		 GTK_SHADOW_IN,
+-		 &event->area,
+-		 widget,
+-		 widget->style->base_gc[GTK_WIDGET_STATE(widget)],
+-		 graph_x,
+-		 graph_y,
+-		 LM_LINE_GRAPH_WIDTH,
+-		 LM_LINE_GRAPH_HEIGHT);
++    GtkStyleContext *sc = gtk_widget_get_style_context(widget);
++    gtk_style_context_add_class (sc, LM_STYLE_FRAMED);
++
++    gtk_render_background(sc, cr,
++		graph_x,
++		graph_y,
++		LM_LINE_GRAPH_WIDTH,
++		LM_LINE_GRAPH_HEIGHT);
++    gtk_render_frame(sc, cr,
++		graph_x,
++		graph_y,
++		LM_LINE_GRAPH_WIDTH,
++		LM_LINE_GRAPH_HEIGHT);
++
++    gtk_style_context_remove_class(sc, LM_STYLE_FRAMED);
+ 
+     graph_area_x = graph_x + LM_BOX_BORDER_WIDTH;
+     graph_area_y = graph_y + LM_BOX_BORDER_WIDTH;
+ 
+-    self_draw_subdivisions(self, graph_area_x, graph_area_y);
++    self_draw_subdivisions(self, cr, graph_area_x, graph_area_y);
+ 
+     if (selfp->applet->hosts->len != 0)
+       {
+-	cairo_t *cr;
+ 	LMTimeSpan now;
+ 	LMTimeSpan scale;
+ 	LMTimeSpan span;
+ 	int i;
+ 
+-	cr = gdk_cairo_create(widget->window);
+-
+ 	/*
+ 	 * Setup a Cairo clip rectangle of size width,height at
+ 	 * (1,1). We need this rectangle because the line that
+@@ -439,8 +511,6 @@ class LM:Line:Graph from Gtk:Widget
+ 	    self_plot_host(self, host, cr, now, scale, span);
+ 	  }
+ 
+-	cairo_destroy(cr);
+-
+ 	if (! selfp->update_timeout_id)
+ 	  {
+ 	    int timeout;
+@@ -464,17 +534,24 @@ class LM:Line:Graph from Gtk:Widget
+   }
+ 
+   private void
+-    draw_labels (self, GdkEventExpose *event, int x, int y)
++    draw_labels (self, cairo_t *cr, int x, int y)
+   {
+-    self_draw_labels_real(self, selfp->x_labels, X_LABELS, event, x, y);
+-    self_draw_labels_real(self, selfp->y_labels, Y_LABELS, event, x, y);
++    self_draw_labels_real(self, selfp->x_labels, X_LABELS, cr, x, y);
++    if (selfp->applet->logarithmic)
++      {
++	self_draw_labels_real(self, selfp->y_labels, Y_LABELS_LOGARITHMIC, cr, x, y);
++      }
++    else
++      {
++	self_draw_labels_real(self, selfp->y_labels, Y_LABELS_LINEAR, cr, x, y);
++      }
+   }
+ 
+   private void
+     draw_labels_real (self,
+ 		      const LabelInfo *infos,
+ 		      int num_infos,
+-		      GdkEventExpose *event (check null),
++		      cairo_t *cr (check null),
+ 		      int x,
+ 		      int y)
+   {
+@@ -485,13 +562,8 @@ class LM:Line:Graph from Gtk:Widget
+       {
+ 	const LabelInfo *info = &infos[i];
+ 
+-	gtk_paint_layout(widget->style,
+-			 widget->window,
+-			 GTK_WIDGET_STATE(widget),
+-			 FALSE,
+-			 &event->area,
+-			 widget,
+-			 NULL,
++	gtk_render_layout(gtk_widget_get_style_context(widget),
++			 cr,
+ 			 x + info->x,
+ 			 y + info->y,
+ 			 info->layout);
+@@ -499,22 +571,19 @@ class LM:Line:Graph from Gtk:Widget
+   }
+ 
+   private void
+-    draw_subdivisions (self, int graph_area_x, int graph_area_y)
++    draw_subdivisions (self, cairo_t *cr, int graph_area_x, int graph_area_y)
+   {
+     GtkWidget *widget = GTK_WIDGET(self);
+-    GdkColor minor_color = { 0, 0xe000, 0xe000, 0xe000 };
+-    GdkColor major_color = { 0, 0xff00, 0xcc00, 0xcc00 };
+-    GdkColor *custom_minor_color;
+-    GdkColor *custom_major_color;
++    GdkRGBA minor_color = { 0.875, 0.875, 0.875, 1.0 };
++    GdkRGBA major_color = { 1.0, 0.75, 0.75, 1.0 };
++    GdkRGBA *custom_minor_color;
++    GdkRGBA *custom_major_color;
+     int minor_subdivision;
+     int major_subdivision;
+     int line_end;
+     int graph_end;
+     int line;
+ 
+-    if (! selfp->subdivision_gc)
+-      selfp->subdivision_gc = gdk_gc_new(widget->window);
+-
+     gtk_widget_style_get(widget,
+ 			 "minor-subdivision-color", &custom_minor_color,
+ 			 "major-subdivision-color", &custom_major_color,
+@@ -523,12 +592,12 @@ class LM:Line:Graph from Gtk:Widget
+     if (custom_minor_color)
+       {
+ 	minor_color = *custom_minor_color;
+-	gdk_color_free(custom_minor_color);
++	gdk_rgba_free(custom_minor_color);
+       }
+     if (custom_major_color)
+       {
+ 	major_color = *custom_major_color;
+-	gdk_color_free(custom_major_color);
++	gdk_rgba_free(custom_major_color);
+       }
+ 
+     /* horizontal */
+@@ -539,41 +608,60 @@ class LM:Line:Graph from Gtk:Widget
+     line_end = graph_area_y + LM_LINE_GRAPH_AREA_HEIGHT - 1;
+     graph_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH;
+ 
+-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &minor_color);
++    lm_cairo_set_source_rgba(cr, &minor_color);
++    cairo_set_line_width(cr, 1.0);
+ 
+     for (line = minor_subdivision; line < LM_LINE_GRAPH_AREA_WIDTH; line += minor_subdivision)
+       if (line % major_subdivision != 0)
+ 	{
+ 	  int x = graph_area_x + line;
+-	  gdk_draw_line(widget->window, selfp->subdivision_gc, x, graph_area_y, x, line_end);
++          cairo_move_to(cr, x+0.5, graph_area_y+0.5);
++          cairo_line_to(cr, x+0.5, line_end+0.5);
++          cairo_stroke(cr);
+ 	}
+ 
+-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &major_color);
++    lm_cairo_set_source_rgba(cr, &major_color);
+ 
+-    for (line = graph_area_x + major_subdivision; line < graph_end; line += major_subdivision)
+-      gdk_draw_line(widget->window, selfp->subdivision_gc, line, graph_area_y, line, line_end);
++    for (line = graph_area_x + major_subdivision; line < graph_end; line += major_subdivision) {
++      cairo_move_to(cr, line+0.5, graph_area_y+0.5);
++      cairo_line_to(cr, line+0.5, line_end+0.5);
++      cairo_stroke(cr);
++    }
+ 
+     /* vertical */
+ 
+-    minor_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MINOR_SUBDIVISIONS;
+-    major_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MAJOR_SUBDIVISIONS;
++    if (selfp->applet->logarithmic)
++      {
++	minor_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MINOR_SUBDIVISIONS_LOGARITHMIC; 
++	major_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MAJOR_SUBDIVISIONS_LOGARITHMIC;
++      }
++    else
++      {
++	minor_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MINOR_SUBDIVISIONS_LINEAR; 
++	major_subdivision = LM_LINE_GRAPH_AREA_HEIGHT / Y_MAJOR_SUBDIVISIONS_LINEAR;
++      }
+ 
+     line_end = graph_area_x + LM_LINE_GRAPH_AREA_WIDTH - 1;
+     graph_end = graph_area_y + LM_LINE_GRAPH_AREA_HEIGHT;
+ 
+-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &minor_color);
++    lm_cairo_set_source_rgba(cr, &minor_color);
+ 
+     for (line = minor_subdivision; line < LM_LINE_GRAPH_AREA_HEIGHT; line += minor_subdivision)
+       if (line % major_subdivision != 0)
+ 	{
+ 	  int y = graph_area_y + line;
+-	  gdk_draw_line(widget->window, selfp->subdivision_gc, graph_area_x, y, line_end, y);
++          cairo_move_to(cr, graph_area_x+0.5, y+0.5);
++          cairo_line_to(cr, line_end+0.5, y+0.5);
++          cairo_stroke(cr);
+ 	}
+ 
+-    gdk_gc_set_rgb_fg_color(selfp->subdivision_gc, &major_color);
++    lm_cairo_set_source_rgba(cr, &major_color);
+ 
+-    for (line = graph_area_y + major_subdivision; line < graph_end; line += major_subdivision)
+-      gdk_draw_line(widget->window, selfp->subdivision_gc, graph_area_x, line, line_end, line);
++    for (line = graph_area_y + major_subdivision; line < graph_end; line += major_subdivision) {
++      cairo_move_to(cr, graph_area_x+0.5, line+0.5);
++      cairo_line_to(cr, line_end, line);
++      cairo_stroke(cr);
++    }
+   }
+ 
+   private void
+@@ -589,7 +677,7 @@ class LM:Line:Graph from Gtk:Widget
+     int i;
+ 
+     cairo_new_path(cr);
+-    gdk_cairo_set_source_color(cr, &host->color);
++    gdk_cairo_set_source_rgba(cr, &host->color);
+ 
+     display_data = lm_data_set_get_display_data(host->data_set, now);
+ 
+@@ -613,7 +701,14 @@ class LM:Line:Graph from Gtk:Widget
+ 	age = now - dp->timestamp;
+ 
+ 	x = (double) (span - age) / span * LM_LINE_GRAPH_AREA_WIDTH;
+-	y = (double) LM_LINE_GRAPH_AREA_HEIGHT - ((double) dp->roundtrip_time / scale * LM_LINE_GRAPH_AREA_HEIGHT);
++	if (selfp->applet->logarithmic)
++	  {
++	    y = (double) LM_LINE_GRAPH_AREA_HEIGHT - (log10((double) dp->roundtrip_time / scale) + 4)/4 * LM_LINE_GRAPH_AREA_HEIGHT;
++	  }
++        else
++	  {
++	    y = (double) LM_LINE_GRAPH_AREA_HEIGHT - ((double) dp->roundtrip_time / scale * LM_LINE_GRAPH_AREA_HEIGHT);
++	  }
+ 
+ 	/*
+ 	 * Constrain high pings inside the graph, since no plot means
+diff --git a/src/lm-main.c b/src/lm-main.c
+index 6c78eec..773b3f6 100644
+--- a/src/lm-main.c
++++ b/src/lm-main.c
+@@ -23,7 +23,7 @@
+ #include <sys/socket.h>
+ #include <netinet/in.h>
+ #include <glib/gi18n.h>
+-#include <gnome.h>
++#include <errno.h>
+ #include "lm-applet.h"
+ #include "lm-shell.h"
+ #include "lm-util.h"
+@@ -88,21 +88,38 @@ main (int argc, char **argv)
+     g_critical("multi-threading is not available");
+   gdk_threads_init();
+ 
+-  gnome_program_init(PACKAGE,
+-		     VERSION,
+-		     LIBGNOMEUI_MODULE,
+-		     argc,
+-		     argv,
+-		     /* translators: header capitalization */
+-		     GNOME_PARAM_HUMAN_READABLE_NAME, _("Link Monitor Applet"),
+-		     GNOME_CLIENT_PARAM_SM_CONNECT, FALSE,
+-		     GNOME_PROGRAM_STANDARD_PROPERTIES,
+-		     NULL);
++  gtk_init(&argc,&argv);
++  // GTK3TODO: needed?
++  //  gnome_program_init(PACKAGE,
++  //		     VERSION,
++  //		     LIBGNOMEUI_MODULE,
++  //		     argc,
++  //		     argv,
++  //		     /* translators: header capitalization */
++  //		     GNOME_PARAM_HUMAN_READABLE_NAME, _("Link Monitor Applet"),
++  //		     GNOME_CLIENT_PARAM_SM_CONNECT, FALSE,
++  //		     GNOME_PROGRAM_STANDARD_PROPERTIES,
++  //		     NULL);
+ 
+   icon = lm_pixbuf_new(GNOMEPIXMAPSDIR G_DIR_SEPARATOR_S "link-monitor-applet.png");
+   gtk_window_set_default_icon(icon);
+   g_object_unref(icon);
+ 
++  // This code loads the application specific CSS file used for the charts and
++  // icons (frame and white background)
++  GtkCssProvider *css_provider = gtk_css_provider_new();
++  GError *error = NULL;
++  if (!gtk_css_provider_load_from_path(css_provider, PKGDATADIR G_DIR_SEPARATOR_S "lm-style.css", &error)) {
++    fprintf(stderr, "Link-Monitor-Applet: Unable to load CSS data \"%s\": %s\n",
++          PKGDATADIR G_DIR_SEPARATOR_S "lm-style.css", error->message);
++    g_error_free (error);
++  }
++  gtk_style_context_add_provider_for_screen(
++    gdk_screen_get_default(),
++    css_provider,
++    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
++
++
+   lm_shell_new(sockets);
+ 
+   return lm_applet_factory_main();
+diff --git a/src/lm-preferences-dialog.gob b/src/lm-preferences-dialog.gob
+index 394d936..edc4de8 100644
+--- a/src/lm-preferences-dialog.gob
++++ b/src/lm-preferences-dialog.gob
+@@ -82,6 +82,9 @@ class LM:Preferences:Dialog from LM:Dialog
+   private GtkWidget *delay_scale;
+   private GtkWidget *scale_label;
+   private GtkWidget *scale_scale;
++  private GtkWidget *scale_style_label;
++  private GtkWidget *scale_style_linear_radio;
++  private GtkWidget *scale_style_logarithmic_radio;
+   private GtkWidget *tooltip_graph_span_label;
+   private GtkWidget *tooltip_graph_span_scale;
+ 
+@@ -91,7 +94,7 @@ class LM:Preferences:Dialog from LM:Dialog
+     GtkTreeSelection *selection;
+ 
+     lm_container_create_interface(GTK_CONTAINER(self),
+-				  PKGDATADIR G_DIR_SEPARATOR_S "preferences-dialog.glade",
++				  PKGDATADIR G_DIR_SEPARATOR_S "preferences-dialog.ui",
+ 				  "vbox",
+ 				  "lm_preferences_dialog_",
+ 				  "scrolled", &selfp->scrolled,
+@@ -104,6 +107,9 @@ class LM:Preferences:Dialog from LM:Dialog
+ 				  "delay_scale", &selfp->delay_scale,
+ 				  "scale_label", &selfp->scale_label,
+ 				  "scale_scale", &selfp->scale_scale,
++				  "scale_style_label", &selfp->scale_style_label,
++				  "scale_style_linear_radio", &selfp->scale_style_linear_radio,
++				  "scale_style_logarithmic_radio", &selfp->scale_style_logarithmic_radio,
+ 				  "tooltip_graph_span_label", &selfp->tooltip_graph_span_label,
+ 				  "tooltip_graph_span_scale", &selfp->tooltip_graph_span_scale,
+ 				  NULL);
+@@ -135,6 +141,7 @@ class LM:Preferences:Dialog from LM:Dialog
+     size_group = gtk_size_group_new(GTK_SIZE_GROUP_HORIZONTAL);
+     gtk_size_group_add_widget(size_group, selfp->delay_label);
+     gtk_size_group_add_widget(size_group, selfp->scale_label);
++    gtk_size_group_add_widget(size_group, selfp->scale_style_label);
+     gtk_size_group_add_widget(size_group, selfp->tooltip_graph_span_label);
+     g_object_unref(size_group);
+ 
+@@ -150,6 +157,9 @@ class LM:Preferences:Dialog from LM:Dialog
+     lm_non_linear_range_setup_static(GTK_RANGE(selfp->scale_scale), scale_blocks, G_N_ELEMENTS(scale_blocks));
+     lm_non_linear_range_set_value(GTK_RANGE(selfp->scale_scale), selfp->applet->scale);
+ 
++    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(selfp->scale_style_linear_radio), !selfp->applet->logarithmic);
++    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(selfp->scale_style_logarithmic_radio), selfp->applet->logarithmic);
++
+     lm_non_linear_range_setup_static(GTK_RANGE(selfp->tooltip_graph_span_scale), lm_preferences_dialog_tooltip_graph_span_blocks, G_N_ELEMENTS(lm_preferences_dialog_tooltip_graph_span_blocks));
+     lm_non_linear_range_set_value(GTK_RANGE(selfp->tooltip_graph_span_scale), selfp->applet->tooltip_graph_span * 1000);
+ 
+@@ -281,6 +291,18 @@ class LM:Preferences:Dialog from LM:Dialog
+   {
+     lm_applet_set_scale(selfp->applet, lm_non_linear_range_get_value(range));
+   }
++  
++  protected void
++    scale_style_linear_toggled_h(self, GtkToggleButton *toggle)
++  {
++    lm_applet_set_logarithmic(selfp->applet, !gtk_toggle_button_get_active(toggle));
++  }
++
++  protected void
++    scale_style_logarithmic_toggled_h(self, GtkToggleButton *toggle)
++  {
++    lm_applet_set_logarithmic(selfp->applet, gtk_toggle_button_get_active(toggle));
++  }
+ 
+   protected void
+     tooltip_graph_span_scale_value_changed_h (self, GtkRange *range)
+diff --git a/src/lm-tooltips.gob b/src/lm-tooltips.gob
+index 6cc2b31..aea6aac 100644
+--- a/src/lm-tooltips.gob
++++ b/src/lm-tooltips.gob
+@@ -181,7 +181,7 @@ class LM:Tooltips from G:Object
+ 	gtk_container_set_border_width(GTK_CONTAINER(selfp->window), selfp->border_width);
+ 
+ 	g_signal_connect_swapped(selfp->window,
+-				 "expose-event",
++				 "draw",
+ 				 G_CALLBACK(self_paint_window),
+ 				 self);
+ 
+@@ -214,7 +214,7 @@ class LM:Tooltips from G:Object
+ 
+     if (selfp->active_data
+ 	&& selfp->active_data->widget == widget
+-	&& GTK_WIDGET_DRAWABLE(selfp->active_data->widget))
++	&& gtk_widget_is_drawable(selfp->active_data->widget))
+       {
+ 	if (data->tip_widget)
+ 	  g_object_unref(data->tip_widget);
+@@ -285,22 +285,21 @@ class LM:Tooltips from G:Object
+   }
+ 
+   private gboolean
+-    paint_window (self)
++    paint_window (self, cairo_t *cr)
+   {
+     GtkRequisition req;
+ 
+     gtk_widget_size_request(selfp->window, &req);
+-    gtk_paint_flat_box(selfp->window->style,
+-		       selfp->window->window,
+-		       GTK_STATE_NORMAL,
+-		       GTK_SHADOW_OUT,
+-		       NULL,
+-		       selfp->window,
+-		       "tooltip",
+-		       0,
+-		       0,
+-		       req.width,
+-		       req.height);
++
++    int width = gtk_widget_get_allocated_width(selfp->window); 	
++    int height = gtk_widget_get_allocated_height(selfp->window); 	
++
++    GtkStyleContext *sc = gtk_widget_get_style_context(selfp->window);
++
++    gtk_style_context_add_class (sc, GTK_STYLE_CLASS_TOOLTIP);
++    gtk_render_background(sc, cr, 0, 0, width, height);
++    gtk_render_frame(sc, cr, 0, 0, width, height);
++    gtk_style_context_remove_class (sc, GTK_STYLE_CLASS_TOOLTIP);
+ 
+     return FALSE;
+   }
+@@ -322,7 +321,7 @@ class LM:Tooltips from G:Object
+ 
+     if (! selfp->window)
+       self_force_window(self);
+-    else if (GTK_WIDGET_VISIBLE(selfp->window))
++    else if (gtk_widget_get_visible(selfp->window))
+       g_get_current_time(&selfp->last_popdown);
+ 
+     gtk_widget_ensure_style(selfp->window);
+@@ -338,7 +337,7 @@ class LM:Tooltips from G:Object
+ 
+     data = selfp->active_data;
+ 
+-    child = GTK_BIN(selfp->window)->child;
++    child = gtk_bin_get_child(GTK_BIN(selfp->window));
+     if (child)
+       gtk_container_remove(GTK_CONTAINER(selfp->window), child);
+ 
+@@ -352,14 +351,11 @@ class LM:Tooltips from G:Object
+     w = requisition.width;
+     h = requisition.height;
+ 
+-    gdk_window_get_origin(widget->window, &x, &y);
+-    if (GTK_WIDGET_NO_WINDOW(widget))
+-      {
+-	x += widget->allocation.x;
+-	y += widget->allocation.y;
+-      }
++    GtkWidget *other_root = gtk_widget_get_toplevel(widget);
++    gtk_window_get_position(GTK_WINDOW(other_root), &x, &y);
++    gtk_widget_translate_coordinates(widget, other_root, x, y, &x, &y);
+ 
+-    x += widget->allocation.width / 2;
++    x += gtk_widget_get_allocated_width(widget)/2;
+ 
+     if (! keyboard_mode)
+       gdk_window_get_pointer(gdk_screen_get_root_window(screen), &x, NULL, NULL);
+@@ -380,11 +376,11 @@ class LM:Tooltips from G:Object
+     else if (x < monitor.x)
+       x = monitor.x;
+ 
+-    if ((y + h + widget->allocation.height + 4) > monitor.y + monitor.height
++    if ((y + h + gtk_widget_get_allocated_height(widget) + 4) > monitor.y + monitor.height
+ 	&& (y - 4) > monitor.y)
+       y = y - h - 4;
+     else
+-      y = y + widget->allocation.height + 4;
++      y = y + gtk_widget_get_allocated_height(widget) + 4;
+ 
+     /*
+      * The following block is not part of GTK+ and has been added to
+@@ -407,7 +403,7 @@ class LM:Tooltips from G:Object
+   {
+     Self *self = SELF(data);
+ 
+-    if (selfp->active_data != NULL && GTK_WIDGET_DRAWABLE(selfp->active_data->widget))
++    if (selfp->active_data != NULL && gtk_widget_is_drawable(selfp->active_data->widget))
+       self_draw_tips(self);
+ 
+     selfp->timeout_id = 0;
+@@ -419,7 +415,7 @@ class LM:Tooltips from G:Object
+   {
+     if (selfp->window)
+       {
+-	if (GTK_WIDGET_VISIBLE(selfp->window))
++	if (gtk_widget_get_visible(selfp->window))
+ 	  g_get_current_time(&selfp->last_popdown);
+ 	gtk_widget_hide(selfp->window);
+       }
+@@ -436,7 +432,7 @@ class LM:Tooltips from G:Object
+ 	  {
+ 	    TooltipsData *data = l->data;
+ 
+-	    if (data->widget == widget && GTK_WIDGET_DRAWABLE(widget))
++	    if (data->widget == widget && gtk_widget_is_drawable(widget))
+ 	      {
+ 		selfp->active_data = data;
+ 		break;
+@@ -506,7 +502,7 @@ class LM:Tooltips from G:Object
+ 
+     if (GTK_IS_WINDOW(toplevel))
+       {
+-	GtkWidget *focus = GTK_WINDOW(toplevel)->focus_widget;
++	GtkWidget *focus = gtk_window_get_focus(GTK_WINDOW(toplevel));
+ 
+ 	g_object_set_data(G_OBJECT(toplevel), TOOLTIPS_KEYBOARD_MODE, GINT_TO_POINTER(TRUE));
+ 
+@@ -522,7 +518,7 @@ class LM:Tooltips from G:Object
+ 
+     if (GTK_IS_WINDOW(toplevel))
+       {
+-	GtkWidget *focus = GTK_WINDOW(toplevel)->focus_widget;
++	GtkWidget *focus = gtk_window_get_focus(GTK_WINDOW(toplevel));
+ 
+ 	if (focus)
+ 	  self_hide_tip(focus);
+@@ -592,28 +588,29 @@ class LM:Tooltips from G:Object
+ 	    break;
+ 
+ 	  case GDK_ENTER_NOTIFY:
+-	    if (! (GTK_IS_MENU_ITEM(widget) && GTK_MENU_ITEM(widget)->submenu))
++	    if (! (GTK_IS_MENU_ITEM(widget) && gtk_menu_item_get_submenu(GTK_MENU_ITEM(widget))))
+ 	      self_start_delay(self, widget);
+ 	    break;
+ 
+ 	  case GDK_LEAVE_NOTIFY:
+ 	    self_set_active_widget(self, NULL);
+-	    selfp->use_sticky_delay = selfp->window && GTK_WIDGET_VISIBLE(selfp->window);
++	    selfp->use_sticky_delay = selfp->window && gtk_widget_get_visible(selfp->window);
+ 	    break;
+ 
+ 	  case GDK_MOTION_NOTIFY:
+ 	    /* Handle menu items specially ... pend popup for each motion
+ 	     * on other widgets, we ignore motion.
+ 	     */
+-	    if (GTK_IS_MENU_ITEM(widget) && ! GTK_MENU_ITEM(widget)->submenu)
+-	      {
+-		/* Completely evil hack to make sure we get the LEAVE_NOTIFY
+-		 */
+-		GTK_PRIVATE_SET_FLAG(widget, GTK_LEAVE_PENDING);
+-		self_set_active_widget(self, NULL);
+-		self_start_delay(self, widget);
+-		break;
+-	      }
++	    // GTK3TODO
++	    //if (GTK_IS_MENU_ITEM(widget) && ! gtk_menu_item_get_submenu(GTK_MENU_ITEM(widget)))
++	    //  {
++	    //  /* Completely evil hack to make sure we get the LEAVE_NOTIFY
++	    //	 */
++	    //	GTK_PRIVATE_SET_FLAG(widget, GTK_LEAVE_PENDING);
++	    //	self_set_active_widget(self, NULL);
++	    //	self_start_delay(self, widget);
++	    //	break;
++	    //}
+ 	    break;		/* ignore */
+ 
+ 	  case GDK_BUTTON_PRESS:
+diff --git a/src/lm-util.c b/src/lm-util.c
+index 560e540..9f242d1 100644
+--- a/src/lm-util.c
++++ b/src/lm-util.c
+@@ -24,8 +24,6 @@
+ #include <math.h>
+ #include <errno.h>
+ #include <glib/gi18n.h>
+-#include <gnome.h>
+-#include <glade/glade.h>
+ #include "lm-util.h"
+ 
+ typedef struct
+@@ -97,49 +95,52 @@ lm_g_object_array_free (GPtrArray *array)
+   g_ptr_array_free(array, TRUE);
+ }
+ 
+-static GladeXML *
+-lm_glade_xml_new (const char *filename, const char *root, const char *domain)
++static GtkBuilder *
++lm_glade_xml_new (const char *filename)
+ {
+-  GladeXML *xml;
+ 
+   g_return_val_if_fail(filename != NULL, NULL);
+ 
+-  xml = glade_xml_new(filename, root, domain);
+-  if (! xml)
+-    lm_show_fatal_error_dialog(NULL, "Unable to load interface \"%s\".", filename);
++  GError* error = NULL;
++  GtkBuilder* builder = gtk_builder_new ();
++  if (!gtk_builder_add_from_file (builder, filename, &error))
++    {
++      lm_show_fatal_error_dialog(NULL, "Unable to load interface \"%s\": %s",
++	  filename, error->message);
++      g_error_free (error);
++    }
+ 
+-  return xml;
++  return builder;
+ }
+ 
+ static GtkWidget *
+-lm_glade_xml_get_widget (GladeXML *xml, const char *widget_name)
++lm_glade_xml_get_widget (GtkBuilder *builder, const char *widget_name)
+ {
+   GtkWidget *widget;
+ 
+-  g_return_val_if_fail(GLADE_IS_XML(xml), NULL);
++  g_return_val_if_fail(GTK_IS_BUILDER(builder), NULL);
+   g_return_val_if_fail(widget_name != NULL, NULL);
+ 
+-  widget = glade_xml_get_widget(xml, widget_name);
++  widget = GTK_WIDGET(gtk_builder_get_object(builder, widget_name));
+   if (! widget)
+-    lm_show_fatal_error_dialog(NULL, "Widget \"%s\" not found in interface \"%s\".", widget_name, xml->filename);
++    lm_show_fatal_error_dialog(NULL, "Widget \"%s\" not found in interface definition.", widget_name);
+ 
+   return widget;
+ }
+ 
+ static void
+-create_interface_connect_cb (const char *handler_name,
++create_interface_connect_cb (GtkBuilder *builder,
+ 			     GObject *object,
+ 			     const char *signal_name,
+-			     const char *signal_data,
++			     const char *handler_name,
+ 			     GObject *connect_object,
+-			     gboolean after,
++			     GConnectFlags flags,
+ 			     gpointer user_data)
+ {
+   static GModule *module = NULL;
+   ContainerCreateInterfaceConnectInfo *info = user_data;
+   char *cb_name;
+   GCallback cb;
+-  GConnectFlags flags;
+ 
+   if (! module)
+     {
+@@ -153,21 +154,18 @@ create_interface_connect_cb (const char *handler_name,
+     lm_show_fatal_error_dialog(NULL, "Signal handler \"%s\" not found.", cb_name);
+   g_free(cb_name);
+ 
+-  flags = G_CONNECT_SWAPPED;
+-  if (after)
+-    flags |= G_CONNECT_AFTER;
+-
++  flags |= G_CONNECT_SWAPPED;
+   g_signal_connect_data(object, signal_name, cb, info->container, NULL, flags);
+ }
+ 
+ void
+ lm_container_create_interface (GtkContainer *container,
+ 			       const char *filename,
+-			       const char *child_name,
++	                       const char *child_name,
+ 			       const char *callback_prefix,
+ 			       ...)
+ {
+-  GladeXML *xml;
++  GtkBuilder *builder;
+   GtkWidget *child;
+   ContainerCreateInterfaceConnectInfo info;
+   va_list args;
+@@ -178,17 +176,22 @@ lm_container_create_interface (GtkContainer *container,
+   g_return_if_fail(child_name != NULL);
+   g_return_if_fail(callback_prefix != NULL);
+ 
+-  xml = lm_glade_xml_new(filename, child_name, NULL);
+-  child = lm_glade_xml_get_widget(xml, child_name);
++  builder = lm_glade_xml_new(filename);
++  child = lm_glade_xml_get_widget(builder, child_name);
+ 
+-  if (GTK_IS_DIALOG(container))
+-    gtk_box_pack_start(GTK_BOX(GTK_DIALOG(container)->vbox), child, TRUE, TRUE, 0);
+-  else
++  gtk_widget_unparent(child);
++
++  if (GTK_IS_DIALOG(container)) {
++    GtkWidget *box = gtk_dialog_get_content_area(GTK_DIALOG(container));
++    gtk_box_pack_start(GTK_BOX(box), child, TRUE, TRUE, 0);
++  } else {
+     gtk_container_add(container, child);
++  }
+ 
+   info.container = container;
+   info.callback_prefix = callback_prefix;
+-  glade_xml_signal_autoconnect_full(xml, create_interface_connect_cb, &info);
++  gtk_builder_connect_signals_full (builder, create_interface_connect_cb, &info);
++
+ 
+   va_start(args, callback_prefix);
+   while ((widget_name = va_arg(args, const char *)))
+@@ -198,11 +201,11 @@ lm_container_create_interface (GtkContainer *container,
+       widget = va_arg(args, GtkWidget **);
+       g_return_if_fail(widget != NULL);
+ 
+-      *widget = lm_glade_xml_get_widget(xml, widget_name);
++      *widget = lm_glade_xml_get_widget(builder, widget_name);
+     }
+   va_end(args);
+ 
+-  g_object_unref(xml);
++  g_object_unref(builder);
+ }
+ 
+ GdkPixbuf *
+@@ -241,8 +244,7 @@ void
+ lm_show_help (const char *link_id)
+ {
+   GError *err = NULL;
+-
+-  if (! gnome_help_display("link-monitor-applet.xml", link_id, &err))
++  if (! g_app_info_launch_default_for_uri ("ghelp:link-monitor-applet", NULL, &err))
+     {
+       lm_show_error_dialog(NULL, _("Unable to display help"), "%s", err->message);
+       g_error_free(err);
+@@ -501,7 +503,7 @@ lm_g_object_connect (gpointer object,
+        *     notify::host-count signal handler) crashes because the
+        *     preferences dialog was already partially destroyed
+        */
+-      if (GTK_IS_OBJECT(object))
++      if (GTK_IS_WIDGET(object))
+ 	g_signal_connect_swapped(object, "destroy", G_CALLBACK(object_connect_destroy_cb), handler);
+       else
+ 	g_object_weak_ref(object, (GWeakNotify) object_connect_destroy_cb, handler);
+@@ -631,7 +633,7 @@ lm_widget_get_parent_window (GtkWidget *widget)
+ 
+   toplevel = gtk_widget_get_toplevel(widget);
+ 
+-  return GTK_WIDGET_TOPLEVEL(toplevel) ? GTK_WINDOW(toplevel) : NULL;
++  return gtk_widget_is_toplevel(toplevel) ? GTK_WINDOW(toplevel) : NULL;
+ }
+ 
+ void
+@@ -657,10 +659,14 @@ lm_widget_get_origin (GtkWidget *widget,
+   g_return_if_fail(xalign >= 0.0 && xalign <= 1.0);
+   g_return_if_fail(yalign >= 0.0 && yalign <= 1.0);
+ 
++  gint natural_width, natural_height, minimal_width, minimal_height;
++  gtk_widget_get_preferred_width(widget, &natural_width, &natural_height);
++  gtk_widget_get_preferred_height(widget, &natural_height, &natural_height);
++
+   if (x)
+-    *x = floor(widget->allocation.x + ((widget->allocation.width - widget->requisition.width) * xalign));
++    *x = floor((natural_width - gtk_widget_get_allocated_width(widget)) * xalign);
+   if (y)
+-    *y = floor(widget->allocation.y + ((widget->allocation.height - widget->requisition.height) * yalign));
++    *y = floor((natural_height  - gtk_widget_get_allocated_height(widget)) * yalign);
+ }
+ 
+ void
+@@ -672,11 +678,11 @@ lm_window_present_from_event (GtkWindow *window)
+ }
+ 
+ void
+-lm_g_value_get_mandatory_color (const GValue *value, GdkColor *color)
++lm_g_value_get_mandatory_color (const GValue *value, GdkRGBA *color)
+ {
+-  GdkColor *p;
++  GdkRGBA *p;
+ 
+-  g_return_if_fail(G_VALUE_HOLDS(value, GDK_TYPE_COLOR));
++  g_return_if_fail(G_VALUE_HOLDS(value, GDK_TYPE_RGBA));
+   g_return_if_fail(color != NULL);
+ 
+   p = g_value_get_boxed(value);
+@@ -746,18 +752,17 @@ lm_tree_row_reference_compare (GtkTreeRowReference *a, GtkTreeRowReference *b)
+ }
+ 
+ void
+-lm_gdk_color_to_cairo_color (const GdkColor *in, LMCairoColor *out)
++lm_cairo_set_source_color (cairo_t *cr, const GdkColor *color)
+ {
+-  g_return_if_fail(in != NULL);
+-  g_return_if_fail(out != NULL);
++  g_return_if_fail(cr != NULL);
++  g_return_if_fail(color != NULL);
+ 
+-  out->red = (double) in->red / 65535;
+-  out->green = (double) in->green / 65535;
+-  out->blue = (double) in->blue / 65535;
++  cairo_set_source_rgb(cr, color->red/65535.0, color->green/65535.0, color->blue/65535.0);
+ }
+ 
++
+ void
+-lm_cairo_set_source_color (cairo_t *cr, const LMCairoColor *color)
++lm_cairo_set_source_rgba (cairo_t *cr, const GdkRGBA *color)
+ {
+   g_return_if_fail(cr != NULL);
+   g_return_if_fail(color != NULL);
+@@ -766,7 +771,7 @@ lm_cairo_set_source_color (cairo_t *cr, const LMCairoColor *color)
+ }
+ 
+ static void
+-lm_cairo_color_to_hls_color (const LMCairoColor *in, LMHLSColor *out)
++lm_cairo_color_to_hls_color (const GdkRGBA *in, LMHLSColor *out)
+ {
+   double min;
+   double max;
+@@ -831,7 +836,7 @@ get_channel (double hue, double m1, double m2)
+ }
+ 
+ static void
+-lm_hls_color_to_cairo_color (const LMHLSColor *in, LMCairoColor *out)
++lm_hls_color_to_cairo_color (const LMHLSColor *in, GdkRGBA *out)
+ {
+   g_return_if_fail(in != NULL);
+   g_return_if_fail(out != NULL);
+@@ -862,7 +867,7 @@ lm_hls_color_to_cairo_color (const LMHLSColor *in, LMCairoColor *out)
+ 
+ /* based on ul_shade() in Ubuntulooks */
+ void
+-lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k)
++lm_cairo_color_shade (const GdkRGBA *in, GdkRGBA *out, float k)
+ {
+   LMHLSColor hls;
+ 
+@@ -885,21 +890,21 @@ lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k)
+  * appropriate.
+  */
+ void
+-lm_paint_box (GdkWindow *window,
++lm_paint_box (cairo_t *cr,
+ 	      GtkStateType state_type,
+ 	      GtkShadowType shadow_type,
+-	      GdkRectangle *area,
+ 	      GtkWidget *widget,
+-	      GdkGC *background_gc,
+ 	      int x,
+ 	      int y,
+ 	      int width,
+ 	      int height)
+ {
+-  g_return_if_fail(GDK_IS_WINDOW(window));
+   g_return_if_fail(GTK_IS_WIDGET(widget));
+-  g_return_if_fail(GDK_IS_GC(background_gc));
+ 
++  // GTK3TODO
++  cairo_rectangle(cr,x+1,y+1, width-2, height-2);
++  cairo_fill(cr);
++  /*
+   gdk_draw_rectangle(window,
+ 		     background_gc,
+ 		     TRUE,
+@@ -907,12 +912,12 @@ lm_paint_box (GdkWindow *window,
+ 		     y + 1,
+ 		     width - 2,
+ 		     height - 2);
++  */	
+ 
+-  gtk_paint_shadow(widget->style,
+-		   window,
++  gtk_paint_shadow(gtk_widget_get_style(widget),
++		   cr,
+ 		   state_type,
+ 		   shadow_type,
+-		   area,
+ 		   widget,
+ 		   NULL,
+ 		   x,
+@@ -925,36 +930,13 @@ lm_paint_box (GdkWindow *window,
+  * Like gdk_draw_pixbuf(), but respects the @area clip rectangle.
+  */
+ void
+-lm_paint_pixbuf (GdkWindow *window,
++lm_paint_pixbuf (cairo_t *cr,
+ 		 GdkPixbuf *pixbuf,
+-		 GdkRectangle *area,
+ 		 int x,
+ 		 int y)
+ {
+-  GdkRectangle image_area;
+-
+-  g_return_if_fail(GDK_IS_WINDOW(window));
+   g_return_if_fail(GDK_IS_PIXBUF(pixbuf));
+-  g_return_if_fail(area != NULL);
+-
+-  image_area.x = x;
+-  image_area.y = y;
+-  image_area.width = gdk_pixbuf_get_width(pixbuf);
+-  image_area.height = gdk_pixbuf_get_height(pixbuf);
+-
+-  if (! gdk_rectangle_intersect(area, &image_area, &image_area))
+-    return;
+ 
+-  gdk_draw_pixbuf(window,
+-		  NULL,
+-		  pixbuf,
+-		  image_area.x - x,
+-		  image_area.y - y,
+-		  image_area.x,
+-		  image_area.y,
+-		  image_area.width,
+-		  image_area.height,
+-		  GDK_RGB_DITHER_NORMAL,
+-		  0,
+-		  0);
++  gdk_cairo_set_source_pixbuf(cr, pixbuf, x, y);
++  cairo_paint(cr);
+ }
+diff --git a/src/lm-util.h b/src/lm-util.h
+index f8d288f..ca0f603 100644
+--- a/src/lm-util.h
++++ b/src/lm-util.h
+@@ -117,7 +117,7 @@ void lm_widget_get_origin (GtkWidget *widget,
+ 
+ void lm_window_present_from_event (GtkWindow *window);
+ 
+-void lm_g_value_get_mandatory_color (const GValue *value, GdkColor *color);
++void lm_g_value_get_mandatory_color (const GValue *value, GdkRGBA *color);
+ 
+ GtkTreeRowReference *lm_tree_row_reference_new_from_path_string (GtkTreeModel *model,
+ 								 const char *path);
+@@ -126,18 +126,11 @@ gboolean lm_tree_row_reference_get_iter (GtkTreeRowReference *reference,
+ int lm_tree_row_reference_compare (GtkTreeRowReference *a,
+ 				   GtkTreeRowReference *b);
+ 
+-typedef struct
+-{
+-  double red;
+-  double green;
+-  double blue;
+-} LMCairoColor;
++void lm_cairo_set_source_color (cairo_t *cr, const GdkColor *color);
+ 
+-void lm_gdk_color_to_cairo_color (const GdkColor *in, LMCairoColor *out);
++void lm_cairo_set_source_rgba (cairo_t *cr, const GdkRGBA *color);
+ 
+-void lm_cairo_set_source_color (cairo_t *cr, const LMCairoColor *color);
+-
+-void lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k);
++void lm_cairo_color_shade (const GdkRGBA *in, GdkRGBA *out, float k);
+ 
+ /*
+  * The size of the border painted by gtk_paint_shadow(), used by the
+@@ -151,21 +144,21 @@ void lm_cairo_color_shade (const LMCairoColor *in, LMCairoColor *out, float k);
+  */
+ #define LM_BOX_BORDER_WIDTH 1
+ 
+-void lm_paint_box (GdkWindow *window,
++void lm_paint_box (cairo_t *cr,
+ 		   GtkStateType state_type,
+ 		   GtkShadowType shadow_type,
+-		   GdkRectangle *area,
+ 		   GtkWidget *widget,
+-		   GdkGC *gc,
+ 		   int x,
+ 		   int y,
+ 		   int width,
+ 		   int height);
+ 
+-void lm_paint_pixbuf (GdkWindow *window,
++void lm_paint_pixbuf (cairo_t *cr,
+ 		      GdkPixbuf *pixbuf,
+-		      GdkRectangle *area,
+ 		      int x,
+ 		      int y);
+ 
++#define LM_STYLE_FRAMED "lm-frame"
++#define LM_STYLE_FLAG "lm-flag"
++
+ #endif /* _LM_UTIL_H */
+diff --git a/ui/GNOME_LinkMonitorApplet.xml b/ui/GNOME_LinkMonitorApplet.xml
+index 6687968..70b37a7 100644
+--- a/ui/GNOME_LinkMonitorApplet.xml
++++ b/ui/GNOME_LinkMonitorApplet.xml
+@@ -1,9 +1,3 @@
+-<Root>
+-  <popups>
+-    <popup name="button3">
+-      <menuitem name="Link Monitor Preferences Item" verb="LinkMonitorPreferences" _label="_Preferences..." pixtype="stock" pixname="gtk-properties"/>
+-      <menuitem name="Link Monitor Help Item" verb="LinkMonitorHelp" _label="_Help" pixtype="stock" pixname="gtk-help"/>
+-      <menuitem name="Link Monitor About Item" verb="LinkMonitorAbout" _label="_About..." pixtype="stock" pixname="gnome-stock-about"/>
+-    </popup>
+-  </popups>
+-</Root>
++<menuitem name="LinkMonitorPreferences" action="LinkMonitorPreferences"/>
++<menuitem name="LinkMonitorHelp" action="LinkMonitorHelp"/>
++<menuitem name="LinkMonitorAbout" action="LinkMonitorAbout"/>
+diff --git a/ui/lm-style.css b/ui/lm-style.css
+new file mode 100644
+index 0000000..0b5d09a
+--- /dev/null
++++ b/ui/lm-style.css
+@@ -0,0 +1,11 @@
++.lm-frame {
++	border-style: inset;
++	border-width: 1;
++	padding: 0;
++	background-color: #fff;
++}
++.lm-flag {
++	border-style: inset;
++	border-width: 1;
++	background-color: #fff;
++}
+diff --git a/ui/preferences-dialog.glade b/ui/preferences-dialog.glade
+deleted file mode 100644
+index 471c8ab..0000000
+--- a/ui/preferences-dialog.glade
++++ /dev/null
+@@ -1,405 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+-<!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
+-<!--*- mode: xml -*-->
+-<glade-interface>
+-  <widget class="GtkDialog" id="dialog">
+-    <property name="border_width">5</property>
+-    <property name="title" translatable="yes">Link Monitor Preferences</property>
+-    <property name="type_hint">GDK_WINDOW_TYPE_HINT_DIALOG</property>
+-    <property name="has_separator">False</property>
+-    <child internal-child="vbox">
+-      <widget class="GtkVBox" id="dialog-vbox1">
+-        <property name="visible">True</property>
+-        <property name="spacing">2</property>
+-        <child>
+-          <widget class="GtkVBox" id="vbox">
+-            <property name="visible">True</property>
+-            <property name="border_width">5</property>
+-            <property name="spacing">18</property>
+-            <child>
+-              <widget class="GtkVBox" id="vbox2">
+-                <property name="visible">True</property>
+-                <property name="spacing">6</property>
+-                <child>
+-                  <widget class="GtkLabel" id="label1">
+-                    <property name="visible">True</property>
+-                    <property name="xalign">0</property>
+-                    <property name="label" translatable="yes">&lt;span weight="bold"&gt;Hosts&lt;/span&gt;</property>
+-                    <property name="use_markup">True</property>
+-                  </widget>
+-                  <packing>
+-                    <property name="expand">False</property>
+-                    <property name="fill">False</property>
+-                  </packing>
+-                </child>
+-                <child>
+-                  <widget class="GtkAlignment" id="alignment4">
+-                    <property name="visible">True</property>
+-                    <property name="left_padding">12</property>
+-                    <child>
+-                      <widget class="GtkHBox" id="hbox12">
+-                        <property name="visible">True</property>
+-                        <property name="spacing">6</property>
+-                        <child>
+-                          <widget class="GtkVBox" id="vbox3">
+-                            <property name="visible">True</property>
+-                            <property name="spacing">6</property>
+-                            <child>
+-                              <widget class="GtkScrolledWindow" id="scrolled">
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="hscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+-                                <property name="vscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+-                                <property name="shadow_type">GTK_SHADOW_IN</property>
+-                                <child>
+-                                  <placeholder/>
+-                                </child>
+-                              </widget>
+-                            </child>
+-                            <child>
+-                              <widget class="GtkLabel" id="selected_label">
+-                                <property name="visible">True</property>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                                <property name="position">1</property>
+-                              </packing>
+-                            </child>
+-                          </widget>
+-                        </child>
+-                        <child>
+-                          <widget class="GtkVBox" id="vbox6">
+-                            <property name="visible">True</property>
+-                            <property name="spacing">6</property>
+-                            <child>
+-                              <widget class="GtkButton" id="add">
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="label">gtk-add</property>
+-                                <property name="use_stock">True</property>
+-                                <property name="response_id">0</property>
+-                                <signal name="clicked" handler="add_clicked_h"/>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                              </packing>
+-                            </child>
+-                            <child>
+-                              <widget class="GtkButton" id="remove">
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="label">gtk-remove</property>
+-                                <property name="use_stock">True</property>
+-                                <property name="response_id">0</property>
+-                                <signal name="clicked" handler="remove_clicked_h"/>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                                <property name="position">1</property>
+-                              </packing>
+-                            </child>
+-                            <child>
+-                              <widget class="GtkButton" id="up">
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="response_id">0</property>
+-                                <signal name="clicked" handler="up_clicked_h"/>
+-                                <child>
+-                                  <widget class="GtkAlignment" id="alignment1">
+-                                    <property name="visible">True</property>
+-                                    <property name="xscale">0</property>
+-                                    <property name="yscale">0</property>
+-                                    <child>
+-                                      <widget class="GtkHBox" id="hbox10">
+-                                        <property name="visible">True</property>
+-                                        <property name="spacing">2</property>
+-                                        <child>
+-                                          <widget class="GtkImage" id="image1">
+-                                            <property name="visible">True</property>
+-                                            <property name="stock">gtk-go-up</property>
+-                                          </widget>
+-                                          <packing>
+-                                            <property name="expand">False</property>
+-                                            <property name="fill">False</property>
+-                                          </packing>
+-                                        </child>
+-                                        <child>
+-                                          <widget class="GtkLabel" id="label12">
+-                                            <property name="visible">True</property>
+-                                            <property name="label" translatable="yes">Move _Up</property>
+-                                            <property name="use_underline">True</property>
+-                                          </widget>
+-                                          <packing>
+-                                            <property name="expand">False</property>
+-                                            <property name="fill">False</property>
+-                                            <property name="position">1</property>
+-                                          </packing>
+-                                        </child>
+-                                      </widget>
+-                                    </child>
+-                                  </widget>
+-                                </child>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                                <property name="position">2</property>
+-                              </packing>
+-                            </child>
+-                            <child>
+-                              <widget class="GtkButton" id="down">
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="response_id">0</property>
+-                                <signal name="clicked" handler="down_clicked_h"/>
+-                                <child>
+-                                  <widget class="GtkAlignment" id="alignment2">
+-                                    <property name="visible">True</property>
+-                                    <property name="xscale">0</property>
+-                                    <property name="yscale">0</property>
+-                                    <child>
+-                                      <widget class="GtkHBox" id="hbox11">
+-                                        <property name="visible">True</property>
+-                                        <property name="spacing">2</property>
+-                                        <child>
+-                                          <widget class="GtkImage" id="image2">
+-                                            <property name="visible">True</property>
+-                                            <property name="stock">gtk-go-down</property>
+-                                          </widget>
+-                                          <packing>
+-                                            <property name="expand">False</property>
+-                                            <property name="fill">False</property>
+-                                          </packing>
+-                                        </child>
+-                                        <child>
+-                                          <widget class="GtkLabel" id="label13">
+-                                            <property name="visible">True</property>
+-                                            <property name="label" translatable="yes">Move _Down</property>
+-                                            <property name="use_underline">True</property>
+-                                          </widget>
+-                                          <packing>
+-                                            <property name="expand">False</property>
+-                                            <property name="fill">False</property>
+-                                            <property name="position">1</property>
+-                                          </packing>
+-                                        </child>
+-                                      </widget>
+-                                    </child>
+-                                  </widget>
+-                                </child>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                                <property name="position">3</property>
+-                              </packing>
+-                            </child>
+-                          </widget>
+-                          <packing>
+-                            <property name="expand">False</property>
+-                            <property name="fill">False</property>
+-                            <property name="position">1</property>
+-                          </packing>
+-                        </child>
+-                      </widget>
+-                    </child>
+-                  </widget>
+-                  <packing>
+-                    <property name="position">1</property>
+-                  </packing>
+-                </child>
+-              </widget>
+-            </child>
+-            <child>
+-              <widget class="GtkVBox" id="vbox4">
+-                <property name="visible">True</property>
+-                <property name="spacing">6</property>
+-                <child>
+-                  <widget class="GtkLabel" id="label4">
+-                    <property name="visible">True</property>
+-                    <property name="xalign">0</property>
+-                    <property name="label" translatable="yes">&lt;span weight="bold"&gt;General&lt;/span&gt;</property>
+-                    <property name="use_markup">True</property>
+-                  </widget>
+-                  <packing>
+-                    <property name="expand">False</property>
+-                    <property name="fill">False</property>
+-                  </packing>
+-                </child>
+-                <child>
+-                  <widget class="GtkAlignment" id="alignment5">
+-                    <property name="visible">True</property>
+-                    <property name="left_padding">12</property>
+-                    <child>
+-                      <widget class="GtkVBox" id="vbox5">
+-                        <property name="visible">True</property>
+-                        <property name="spacing">6</property>
+-                        <child>
+-                          <widget class="GtkHBox" id="hbox4">
+-                            <property name="visible">True</property>
+-                            <property name="spacing">12</property>
+-                            <child>
+-                              <widget class="GtkLabel" id="delay_label">
+-                                <property name="visible">True</property>
+-                                <property name="xalign">0</property>
+-                                <property name="label" translatable="yes">_Delay between echo requests:</property>
+-                                <property name="use_underline">True</property>
+-                                <property name="mnemonic_widget">delay_scale</property>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                              </packing>
+-                            </child>
+-                            <child>
+-                              <widget class="GtkHScale" id="delay_scale">
+-                                <property name="width_request">200</property>
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-                                <property name="adjustment">0 0 100 1 10 0</property>
+-                                <property name="digits">0</property>
+-                                <signal name="value_changed" handler="delay_scale_value_changed_h"/>
+-                                <signal name="format_value" handler="scale_format_value_h"/>
+-                              </widget>
+-                              <packing>
+-                                <property name="position">1</property>
+-                              </packing>
+-                            </child>
+-                          </widget>
+-                        </child>
+-                        <child>
+-                          <widget class="GtkHBox" id="hbox6">
+-                            <property name="visible">True</property>
+-                            <property name="spacing">12</property>
+-                            <child>
+-                              <widget class="GtkLabel" id="scale_label">
+-                                <property name="visible">True</property>
+-                                <property name="xalign">0</property>
+-                                <property name="label" translatable="yes">_Graphs scale:</property>
+-                                <property name="use_underline">True</property>
+-                                <property name="mnemonic_widget">scale_scale</property>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                              </packing>
+-                            </child>
+-                            <child>
+-                              <widget class="GtkHScale" id="scale_scale">
+-                                <property name="width_request">200</property>
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-                                <property name="adjustment">0 0 100 1 10 0</property>
+-                                <property name="digits">0</property>
+-                                <signal name="value_changed" handler="scale_scale_value_changed_h"/>
+-                                <signal name="format_value" handler="scale_format_value_h"/>
+-                              </widget>
+-                              <packing>
+-                                <property name="position">1</property>
+-                              </packing>
+-                            </child>
+-                          </widget>
+-                          <packing>
+-                            <property name="position">1</property>
+-                          </packing>
+-                        </child>
+-                        <child>
+-                          <widget class="GtkHBox" id="hbox3">
+-                            <property name="visible">True</property>
+-                            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-                            <property name="spacing">12</property>
+-                            <child>
+-                              <widget class="GtkLabel" id="tooltip_graph_span_label">
+-                                <property name="visible">True</property>
+-                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-                                <property name="xalign">0</property>
+-                                <property name="label" translatable="yes">_Tooltip graph span:</property>
+-                                <property name="use_underline">True</property>
+-                                <property name="mnemonic_widget">tooltip_graph_span_scale</property>
+-                              </widget>
+-                              <packing>
+-                                <property name="expand">False</property>
+-                                <property name="fill">False</property>
+-                              </packing>
+-                            </child>
+-                            <child>
+-                              <widget class="GtkHScale" id="tooltip_graph_span_scale">
+-                                <property name="width_request">200</property>
+-                                <property name="visible">True</property>
+-                                <property name="can_focus">True</property>
+-                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-                                <property name="adjustment">0 0 100 1 10 0</property>
+-                                <property name="digits">0</property>
+-                                <signal name="value_changed" handler="tooltip_graph_span_scale_value_changed_h"/>
+-                                <signal name="format_value" handler="scale_format_value_h"/>
+-                              </widget>
+-                              <packing>
+-                                <property name="position">1</property>
+-                              </packing>
+-                            </child>
+-                          </widget>
+-                          <packing>
+-                            <property name="position">2</property>
+-                          </packing>
+-                        </child>
+-                      </widget>
+-                    </child>
+-                  </widget>
+-                  <packing>
+-                    <property name="position">1</property>
+-                  </packing>
+-                </child>
+-              </widget>
+-              <packing>
+-                <property name="expand">False</property>
+-                <property name="fill">False</property>
+-                <property name="position">1</property>
+-              </packing>
+-            </child>
+-          </widget>
+-          <packing>
+-            <property name="position">1</property>
+-          </packing>
+-        </child>
+-        <child internal-child="action_area">
+-          <widget class="GtkHButtonBox" id="dialog-action_area1">
+-            <property name="visible">True</property>
+-            <property name="layout_style">GTK_BUTTONBOX_END</property>
+-            <child>
+-              <widget class="GtkButton" id="helpbutton1">
+-                <property name="visible">True</property>
+-                <property name="can_focus">True</property>
+-                <property name="can_default">True</property>
+-                <property name="label">gtk-help</property>
+-                <property name="use_stock">True</property>
+-                <property name="response_id">-11</property>
+-              </widget>
+-            </child>
+-            <child>
+-              <widget class="GtkButton" id="closebutton1">
+-                <property name="visible">True</property>
+-                <property name="can_focus">True</property>
+-                <property name="can_default">True</property>
+-                <property name="label">gtk-close</property>
+-                <property name="use_stock">True</property>
+-                <property name="response_id">-7</property>
+-              </widget>
+-              <packing>
+-                <property name="position">1</property>
+-              </packing>
+-            </child>
+-          </widget>
+-          <packing>
+-            <property name="expand">False</property>
+-            <property name="pack_type">GTK_PACK_END</property>
+-          </packing>
+-        </child>
+-      </widget>
+-    </child>
+-  </widget>
+-</glade-interface>
+diff --git a/ui/preferences-dialog.ui b/ui/preferences-dialog.ui
+new file mode 100644
+index 0000000..6b497cd
+--- /dev/null
++++ b/ui/preferences-dialog.ui
+@@ -0,0 +1,573 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<interface>
++  <!-- interface-requires gtk+ 2.12 -->
++  <object class="GtkAdjustment" id="adjustment1">
++    <property name="upper">100</property>
++    <property name="step_increment">1</property>
++    <property name="page_increment">10</property>
++  </object>
++  <object class="GtkAdjustment" id="adjustment2">
++    <property name="upper">100</property>
++    <property name="step_increment">1</property>
++    <property name="page_increment">10</property>
++  </object>
++  <object class="GtkAdjustment" id="adjustment3">
++    <property name="upper">100</property>
++    <property name="step_increment">1</property>
++    <property name="page_increment">10</property>
++  </object>
++  <object class="GtkDialog" id="dialog">
++    <property name="can_focus">False</property>
++    <property name="border_width">5</property>
++    <property name="title" translatable="yes">Link Monitor Preferences</property>
++    <property name="type_hint">dialog</property>
++    <child internal-child="vbox">
++      <object class="GtkBox" id="dialog-vbox1">
++        <property name="visible">True</property>
++        <property name="can_focus">False</property>
++        <property name="spacing">2</property>
++        <child internal-child="action_area">
++          <object class="GtkButtonBox" id="dialog-action_area1">
++            <property name="visible">True</property>
++            <property name="can_focus">False</property>
++            <property name="layout_style">end</property>
++            <child>
++              <object class="GtkButton" id="helpbutton1">
++                <property name="label">gtk-help</property>
++                <property name="visible">True</property>
++                <property name="can_focus">True</property>
++                <property name="can_default">True</property>
++                <property name="receives_default">False</property>
++                <property name="use_action_appearance">False</property>
++                <property name="use_stock">True</property>
++              </object>
++              <packing>
++                <property name="expand">False</property>
++                <property name="fill">True</property>
++                <property name="position">0</property>
++              </packing>
++            </child>
++            <child>
++              <object class="GtkButton" id="closebutton1">
++                <property name="label">gtk-close</property>
++                <property name="visible">True</property>
++                <property name="can_focus">True</property>
++                <property name="can_default">True</property>
++                <property name="receives_default">False</property>
++                <property name="use_action_appearance">False</property>
++                <property name="use_stock">True</property>
++              </object>
++              <packing>
++                <property name="expand">False</property>
++                <property name="fill">True</property>
++                <property name="position">1</property>
++              </packing>
++            </child>
++          </object>
++          <packing>
++            <property name="expand">False</property>
++            <property name="fill">True</property>
++            <property name="pack_type">end</property>
++            <property name="position">0</property>
++          </packing>
++        </child>
++        <child>
++          <object class="GtkVBox" id="vbox">
++            <property name="visible">True</property>
++            <property name="can_focus">False</property>
++            <property name="border_width">5</property>
++            <property name="spacing">18</property>
++            <child>
++              <object class="GtkVBox" id="vbox2">
++                <property name="visible">True</property>
++                <property name="can_focus">False</property>
++                <property name="spacing">6</property>
++                <child>
++                  <object class="GtkLabel" id="label1">
++                    <property name="visible">True</property>
++                    <property name="can_focus">False</property>
++                    <property name="xalign">0</property>
++                    <property name="label" translatable="yes">&lt;span weight="bold"&gt;Hosts&lt;/span&gt;</property>
++                    <property name="use_markup">True</property>
++                  </object>
++                  <packing>
++                    <property name="expand">False</property>
++                    <property name="fill">False</property>
++                    <property name="position">0</property>
++                  </packing>
++                </child>
++                <child>
++                  <object class="GtkAlignment" id="alignment4">
++                    <property name="visible">True</property>
++                    <property name="can_focus">False</property>
++                    <property name="left_padding">12</property>
++                    <child>
++                      <object class="GtkHBox" id="hbox12">
++                        <property name="visible">True</property>
++                        <property name="can_focus">False</property>
++                        <property name="spacing">6</property>
++                        <child>
++                          <object class="GtkVBox" id="vbox3">
++                            <property name="visible">True</property>
++                            <property name="can_focus">False</property>
++                            <property name="spacing">6</property>
++                            <child>
++                              <object class="GtkScrolledWindow" id="scrolled">
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="shadow_type">in</property>
++                                <child>
++                                  <placeholder/>
++                                </child>
++                              </object>
++                              <packing>
++                                <property name="expand">True</property>
++                                <property name="fill">True</property>
++                                <property name="position">0</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkLabel" id="selected_label">
++                                <property name="visible">True</property>
++                                <property name="can_focus">False</property>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">1</property>
++                              </packing>
++                            </child>
++                          </object>
++                          <packing>
++                            <property name="expand">True</property>
++                            <property name="fill">True</property>
++                            <property name="position">0</property>
++                          </packing>
++                        </child>
++                        <child>
++                          <object class="GtkVBox" id="vbox6">
++                            <property name="visible">True</property>
++                            <property name="can_focus">False</property>
++                            <property name="spacing">6</property>
++                            <child>
++                              <object class="GtkButton" id="add">
++                                <property name="label">gtk-add</property>
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="receives_default">False</property>
++                                <property name="use_action_appearance">False</property>
++                                <property name="use_stock">True</property>
++                                <signal name="clicked" handler="add_clicked_h" swapped="no"/>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">0</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkButton" id="remove">
++                                <property name="label">gtk-remove</property>
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="receives_default">False</property>
++                                <property name="use_action_appearance">False</property>
++                                <property name="use_stock">True</property>
++                                <signal name="clicked" handler="remove_clicked_h" swapped="no"/>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">1</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkButton" id="up">
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="receives_default">False</property>
++                                <property name="use_action_appearance">False</property>
++                                <signal name="clicked" handler="up_clicked_h" swapped="no"/>
++                                <child>
++                                  <object class="GtkAlignment" id="alignment1">
++                                    <property name="visible">True</property>
++                                    <property name="can_focus">False</property>
++                                    <property name="xscale">0</property>
++                                    <property name="yscale">0</property>
++                                    <child>
++                                      <object class="GtkHBox" id="hbox10">
++                                        <property name="visible">True</property>
++                                        <property name="can_focus">False</property>
++                                        <property name="spacing">2</property>
++                                        <child>
++                                          <object class="GtkImage" id="image1">
++                                            <property name="visible">True</property>
++                                            <property name="can_focus">False</property>
++                                            <property name="stock">gtk-go-up</property>
++                                          </object>
++                                          <packing>
++                                            <property name="expand">False</property>
++                                            <property name="fill">False</property>
++                                            <property name="position">0</property>
++                                          </packing>
++                                        </child>
++                                        <child>
++                                          <object class="GtkLabel" id="label12">
++                                            <property name="visible">True</property>
++                                            <property name="can_focus">False</property>
++                                            <property name="label" translatable="yes">Move _Up</property>
++                                            <property name="use_underline">True</property>
++                                          </object>
++                                          <packing>
++                                            <property name="expand">False</property>
++                                            <property name="fill">False</property>
++                                            <property name="position">1</property>
++                                          </packing>
++                                        </child>
++                                      </object>
++                                    </child>
++                                  </object>
++                                </child>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">2</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkButton" id="down">
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="receives_default">False</property>
++                                <property name="use_action_appearance">False</property>
++                                <signal name="clicked" handler="down_clicked_h" swapped="no"/>
++                                <child>
++                                  <object class="GtkAlignment" id="alignment2">
++                                    <property name="visible">True</property>
++                                    <property name="can_focus">False</property>
++                                    <property name="xscale">0</property>
++                                    <property name="yscale">0</property>
++                                    <child>
++                                      <object class="GtkHBox" id="hbox11">
++                                        <property name="visible">True</property>
++                                        <property name="can_focus">False</property>
++                                        <property name="spacing">2</property>
++                                        <child>
++                                          <object class="GtkImage" id="image2">
++                                            <property name="visible">True</property>
++                                            <property name="can_focus">False</property>
++                                            <property name="stock">gtk-go-down</property>
++                                          </object>
++                                          <packing>
++                                            <property name="expand">False</property>
++                                            <property name="fill">False</property>
++                                            <property name="position">0</property>
++                                          </packing>
++                                        </child>
++                                        <child>
++                                          <object class="GtkLabel" id="label13">
++                                            <property name="visible">True</property>
++                                            <property name="can_focus">False</property>
++                                            <property name="label" translatable="yes">Move _Down</property>
++                                            <property name="use_underline">True</property>
++                                          </object>
++                                          <packing>
++                                            <property name="expand">False</property>
++                                            <property name="fill">False</property>
++                                            <property name="position">1</property>
++                                          </packing>
++                                        </child>
++                                      </object>
++                                    </child>
++                                  </object>
++                                </child>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">3</property>
++                              </packing>
++                            </child>
++                          </object>
++                          <packing>
++                            <property name="expand">False</property>
++                            <property name="fill">False</property>
++                            <property name="position">1</property>
++                          </packing>
++                        </child>
++                      </object>
++                    </child>
++                  </object>
++                  <packing>
++                    <property name="expand">True</property>
++                    <property name="fill">True</property>
++                    <property name="position">1</property>
++                  </packing>
++                </child>
++              </object>
++              <packing>
++                <property name="expand">True</property>
++                <property name="fill">True</property>
++                <property name="position">0</property>
++              </packing>
++            </child>
++            <child>
++              <object class="GtkVBox" id="vbox4">
++                <property name="visible">True</property>
++                <property name="can_focus">False</property>
++                <property name="spacing">6</property>
++                <child>
++                  <object class="GtkLabel" id="label4">
++                    <property name="visible">True</property>
++                    <property name="can_focus">False</property>
++                    <property name="xalign">0</property>
++                    <property name="label" translatable="yes">&lt;span weight="bold"&gt;General&lt;/span&gt;</property>
++                    <property name="use_markup">True</property>
++                  </object>
++                  <packing>
++                    <property name="expand">False</property>
++                    <property name="fill">False</property>
++                    <property name="position">0</property>
++                  </packing>
++                </child>
++                <child>
++                  <object class="GtkAlignment" id="alignment5">
++                    <property name="visible">True</property>
++                    <property name="can_focus">False</property>
++                    <property name="left_padding">12</property>
++                    <child>
++                      <object class="GtkVBox" id="vbox5">
++                        <property name="visible">True</property>
++                        <property name="can_focus">False</property>
++                        <property name="spacing">6</property>
++                        <child>
++                          <object class="GtkHBox" id="hbox4">
++                            <property name="visible">True</property>
++                            <property name="can_focus">False</property>
++                            <property name="spacing">12</property>
++                            <child>
++                              <object class="GtkLabel" id="delay_label">
++                                <property name="visible">True</property>
++                                <property name="can_focus">False</property>
++                                <property name="xalign">0</property>
++                                <property name="label" translatable="yes">_Delay between echo requests:</property>
++                                <property name="use_underline">True</property>
++                                <property name="mnemonic_widget">delay_scale</property>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">0</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkHScale" id="delay_scale">
++                                <property name="width_request">200</property>
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                                <property name="adjustment">adjustment1</property>
++                                <property name="digits">0</property>
++                                <signal name="format-value" handler="scale_format_value_h" swapped="no"/>
++                                <signal name="value-changed" handler="delay_scale_value_changed_h" swapped="no"/>
++                              </object>
++                              <packing>
++                                <property name="expand">True</property>
++                                <property name="fill">True</property>
++                                <property name="position">1</property>
++                              </packing>
++                            </child>
++                          </object>
++                          <packing>
++                            <property name="expand">True</property>
++                            <property name="fill">True</property>
++                            <property name="position">0</property>
++                          </packing>
++                        </child>
++                        <child>
++                          <object class="GtkHBox" id="hbox6">
++                            <property name="visible">True</property>
++                            <property name="can_focus">False</property>
++                            <property name="spacing">12</property>
++                            <child>
++                              <object class="GtkLabel" id="scale_label">
++                                <property name="visible">True</property>
++                                <property name="can_focus">False</property>
++                                <property name="xalign">0</property>
++                                <property name="label" translatable="yes">_Graphs scale:</property>
++                                <property name="use_underline">True</property>
++                                <property name="mnemonic_widget">scale_scale</property>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">0</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkHScale" id="scale_scale">
++                                <property name="width_request">200</property>
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                                <property name="adjustment">adjustment2</property>
++                                <property name="digits">0</property>
++                                <signal name="format-value" handler="scale_format_value_h" swapped="no"/>
++                                <signal name="value-changed" handler="scale_scale_value_changed_h" swapped="no"/>
++                              </object>
++                              <packing>
++                                <property name="expand">True</property>
++                                <property name="fill">True</property>
++                                <property name="position">1</property>
++                              </packing>
++                            </child>
++                          </object>
++                          <packing>
++                            <property name="expand">True</property>
++                            <property name="fill">True</property>
++                            <property name="position">1</property>
++                          </packing>
++                        </child>
++                        <child>
++                          <object class="GtkHBox" id="hbox3">
++                            <property name="visible">True</property>
++                            <property name="can_focus">False</property>
++                            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                            <property name="spacing">12</property>
++                            <child>
++                              <object class="GtkLabel" id="tooltip_graph_span_label">
++                                <property name="visible">True</property>
++                                <property name="can_focus">False</property>
++                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                                <property name="xalign">0</property>
++                                <property name="label" translatable="yes">_Tooltip graph span:</property>
++                                <property name="use_underline">True</property>
++                                <property name="mnemonic_widget">tooltip_graph_span_scale</property>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">False</property>
++                                <property name="position">0</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkHScale" id="tooltip_graph_span_scale">
++                                <property name="width_request">200</property>
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
++                                <property name="adjustment">adjustment3</property>
++                                <property name="digits">0</property>
++                                <signal name="format-value" handler="scale_format_value_h" swapped="no"/>
++                                <signal name="value-changed" handler="tooltip_graph_span_scale_value_changed_h" swapped="no"/>
++                              </object>
++                              <packing>
++                                <property name="expand">True</property>
++                                <property name="fill">True</property>
++                                <property name="position">1</property>
++                              </packing>
++                            </child>
++                          </object>
++                          <packing>
++                            <property name="expand">True</property>
++                            <property name="fill">True</property>
++                            <property name="position">2</property>
++                          </packing>
++                        </child>
++                        <child>
++                          <object class="GtkBox" id="box1">
++                            <property name="visible">True</property>
++                            <property name="can_focus">False</property>
++                            <property name="spacing">12</property>
++                            <child>
++                              <object class="GtkLabel" id="scale_style_label">
++                                <property name="visible">True</property>
++                                <property name="can_focus">False</property>
++                                <property name="xalign">0</property>
++                                <property name="label" translatable="yes">_Scale Style: </property>
++                                <property name="use_underline">True</property>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">True</property>
++                                <property name="position">0</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkRadioButton" id="scale_style_linear_radio">
++                                <property name="label" translatable="yes">_Linear</property>
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="receives_default">False</property>
++                                <property name="use_action_appearance">False</property>
++                                <property name="use_underline">True</property>
++                                <property name="xalign">0</property>
++                                <property name="active">True</property>
++                                <property name="draw_indicator">True</property>
++                                <signal name="toggled" handler="scale_style_linear_toggled_h" swapped="no"/>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">True</property>
++                                <property name="position">1</property>
++                              </packing>
++                            </child>
++                            <child>
++                              <object class="GtkRadioButton" id="scale_style_logarithmic_radio">
++                                <property name="label" translatable="yes">L_ogarithmic</property>
++                                <property name="visible">True</property>
++                                <property name="can_focus">True</property>
++                                <property name="receives_default">False</property>
++                                <property name="use_action_appearance">False</property>
++                                <property name="use_underline">True</property>
++                                <property name="xalign">0</property>
++                                <property name="active">True</property>
++                                <property name="draw_indicator">True</property>
++                                <property name="group">scale_style_linear_radio</property>
++                                <signal name="toggled" handler="scale_style_logarithmic_toggled_h" swapped="no"/>
++                              </object>
++                              <packing>
++                                <property name="expand">False</property>
++                                <property name="fill">True</property>
++                                <property name="position">2</property>
++                              </packing>
++                            </child>
++                          </object>
++                          <packing>
++                            <property name="expand">True</property>
++                            <property name="fill">True</property>
++                            <property name="position">3</property>
++                          </packing>
++                        </child>
++                      </object>
++                    </child>
++                  </object>
++                  <packing>
++                    <property name="expand">True</property>
++                    <property name="fill">True</property>
++                    <property name="position">1</property>
++                  </packing>
++                </child>
++              </object>
++              <packing>
++                <property name="expand">False</property>
++                <property name="fill">False</property>
++                <property name="position">1</property>
++              </packing>
++            </child>
++          </object>
++          <packing>
++            <property name="expand">False</property>
++            <property name="fill">True</property>
++            <property name="position">1</property>
++          </packing>
++        </child>
++      </object>
++    </child>
++    <action-widgets>
++      <action-widget response="-11">helpbutton1</action-widget>
++      <action-widget response="-7">closebutton1</action-widget>
++    </action-widgets>
++  </object>
++</interface>
+-- 
+1.7.7
+

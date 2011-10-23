@@ -18,13 +18,13 @@
  */
 
 %headertop{
-#include <gnome.h>
 #include <panel-applet.h>
 #include "lm-host.h"
 %}
 
 %privateheader{
 #include <gtk/gtk.h>
+#include <gdk/gdk.h>
 %}
 
 %{
@@ -174,39 +174,47 @@ class LM:Applet from Panel:Applet
 
     binding_set = gtk_binding_set_by_class(class);
 
-    gtk_binding_entry_add_signal(binding_set, GDK_Return, 0, "activate", 0);
-    gtk_binding_entry_add_signal(binding_set, GDK_ISO_Enter, 0, "activate", 0);
-    gtk_binding_entry_add_signal(binding_set, GDK_KP_Enter, 0, "activate", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Return, 0, "activate", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KEY_ISO_Enter, 0, "activate", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KEY_KP_Enter, 0, "activate", 0);
 
-    gtk_binding_entry_add_signal(binding_set, GDK_Return, GDK_MOD1_MASK, "activate-preferences", 0);
-    gtk_binding_entry_add_signal(binding_set, GDK_ISO_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
-    gtk_binding_entry_add_signal(binding_set, GDK_KP_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KEY_Return, GDK_MOD1_MASK, "activate-preferences", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KEY_ISO_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
+    gtk_binding_entry_add_signal(binding_set, GDK_KEY_KP_Enter, GDK_MOD1_MASK, "activate-preferences", 0);
   }
 
   private gboolean
     factory_cb (PanelApplet *applet, const char *iid, gpointer data)
   {
+
     Self *self = SELF(applet);
-    static const BonoboUIVerb menu_verbs[] = {
-      BONOBO_UI_VERB("LinkMonitorPreferences", self_preferences_cb),
-      BONOBO_UI_VERB("LinkMonitorHelp", self_help_cb),
-      BONOBO_UI_VERB("LinkMonitorAbout", self_about_cb),
-      BONOBO_UI_VERB_END
+    static const GtkActionEntry menu_actions[] = {
+      { "LinkMonitorPreferences", GTK_STOCK_PROPERTIES, N_("_Preferences..."),
+      		NULL, NULL, G_CALLBACK(self_preferences_cb)},
+      { "LinkMonitorHelp", GTK_STOCK_HELP, N_("_Help"),
+      		NULL, NULL, G_CALLBACK(self_help_cb)},
+      { "LinkMonitorAbout", GTK_STOCK_ABOUT, N_("_About..."),
+      		NULL, NULL, G_CALLBACK(self_about_cb)},
     };
     GSList *gconf_hosts;
     GSList *l;
     int num_hosts = 0;
 
-    if (strcmp(iid, "OAFIID:GNOME_LinkMonitorApplet"))
+    if (strcmp(iid, "LinkMonitorApplet"))
       return FALSE;
 
-    GDK_THREADS_ENTER();
+    // GTK2TODO:
+    // GDK_THREADS_ENTER();
 
     lm_shell->applets = g_slist_append(lm_shell->applets, self);
 
     panel_applet_set_flags(applet, PANEL_APPLET_EXPAND_MINOR);
     panel_applet_add_preferences(applet, "/schemas/apps/link-monitor-applet/prefs", NULL);
-    panel_applet_setup_menu_from_file(applet, DATADIR, "GNOME_LinkMonitorApplet.xml", NULL, menu_verbs, applet);
+    GtkActionGroup *action_group = gtk_action_group_new ("Link-Monitor-Applet Actions");
+    gtk_action_group_set_translation_domain (action_group, GETTEXT_PACKAGE);
+    gtk_action_group_add_actions (action_group, menu_actions, G_N_ELEMENTS (menu_actions), self);
+    panel_applet_setup_menu_from_file (applet, DATADIR "/gnome-2.0/ui/GNOME_LinkMonitorApplet.xml", action_group);
+    g_object_unref (action_group);
 
     self->delay = panel_applet_gconf_get_int(applet, CONF_DELAY, NULL);
     if (self->delay < MIN_DELAY)
@@ -231,6 +239,7 @@ class LM:Applet from Panel:Applet
       self->preferences_height = DEFAULT_PREFERENCES_HEIGHT;
 
     selfp->tooltip_flag_size_group = gtk_size_group_new(GTK_SIZE_GROUP_HORIZONTAL);
+
 
     gconf_hosts = panel_applet_gconf_get_list(applet, CONF_HOSTS, GCONF_VALUE_STRING, NULL);
     LM_LIST_FOREACH(l, gconf_hosts)
@@ -263,13 +272,14 @@ class LM:Applet from Panel:Applet
 		     "signal::button-press-event", self_button_press_event_h, NULL,
 		     "signal::change-orient", self_reconfigure, NULL,
 		     "signal::change-size", self_reconfigure, NULL,
-		     "signal::change-background", self_change_background_h, NULL,
+		     //"signal::change-background", self_change_background_h, NULL,
 		     "signal::style-set", self_style_set_h, NULL,
 		     NULL);
 
     gtk_widget_show(GTK_WIDGET(self));
 
-    GDK_THREADS_LEAVE();
+    // GTK3TODO:
+    // GDK_THREADS_LEAVE();
 
     return TRUE;
   }
@@ -280,7 +290,7 @@ class LM:Applet from Panel:Applet
    * update the progress bars after the panel has been unrealized).
    */
   private void
-    destroy_h (GtkObject *object, gpointer user_data)
+    destroy_h (GtkWidget *object, gpointer user_data)
   {
     Self *self = SELF(object);
 
@@ -322,45 +332,47 @@ class LM:Applet from Panel:Applet
     return FALSE;		/* remove source */
   }
 
-  /* taken from the GNOME mixer applet */
-  private void
-    change_background_h (PanelApplet *applet,
-			 PanelAppletBackgroundType type,
-			 GdkColor *color,
-			 GdkPixmap *pixmap,
-			 gpointer user_data)
-  {
-    GtkRcStyle *rc_style;
 
-    /* reset style */
-    gtk_widget_set_style(GTK_WIDGET(applet), NULL);
-    rc_style = gtk_rc_style_new();
-    gtk_widget_modify_style(GTK_WIDGET(applet), rc_style);
-    g_object_unref(rc_style);
-
-    switch (type)
-      {
-      case PANEL_NO_BACKGROUND:
-	break;
-
-      case PANEL_COLOR_BACKGROUND:
-	gtk_widget_modify_bg(GTK_WIDGET(applet), GTK_STATE_NORMAL, color);
-	break;
-
-      case PANEL_PIXMAP_BACKGROUND:
-	{
-	  GtkStyle *style;
-
-	  style = gtk_style_copy(GTK_WIDGET(applet)->style);
-	  if (style->bg_pixmap[GTK_STATE_NORMAL])
-	    g_object_unref(style->bg_pixmap[GTK_STATE_NORMAL]);
-	  style->bg_pixmap[GTK_STATE_NORMAL] = g_object_ref(pixmap);
-	  gtk_widget_set_style(GTK_WIDGET(applet), style);
-	  g_object_unref(style);
-	}
-	break;
-      }
-  }
+// GTK3TODO seems to be not required any more?
+// /* taken from the GNOME mixer applet */
+//  private void
+//    change_background_h (PanelApplet *applet,
+//			 PanelAppletBackgroundType type,
+//			 GdkColor *color,
+//			 cairo_surface_t *pixmap,
+//			 gpointer user_data)
+//  {
+//    GtkRcStyle *rc_style;
+//
+//    /* reset style */
+//    gtk_widget_set_style(GTK_WIDGET(applet), NULL);
+//    rc_style = gtk_rc_style_new();
+//    gtk_widget_modify_style(GTK_WIDGET(applet), rc_style);
+//    g_object_unref(rc_style);
+//
+//    switch (type)
+//      {
+//      case PANEL_NO_BACKGROUND:
+//	break;
+//
+//      case PANEL_COLOR_BACKGROUND:
+//	gtk_widget_modify_bg(GTK_WIDGET(applet), GTK_STATE_NORMAL, color);
+//	break;
+//
+//      case PANEL_PIXMAP_BACKGROUND:
+//	{
+//	  GtkStyle *style;
+//
+//	  style = gtk_style_copy(GTK_WIDGET(applet)->style);
+//	  if (style->bg_pixmap[GTK_STATE_NORMAL])
+//	    g_object_unref(style->bg_pixmap[GTK_STATE_NORMAL]);
+//	  style->bg_pixmap[GTK_STATE_NORMAL] = g_object_ref(pixmap);
+//	  gtk_widget_set_style(GTK_WIDGET(applet), style);
+//	  g_object_unref(style);
+//	}
+//	break;
+//      }
+//  }
 
   private void
     style_set_h (GtkWidget *widget,
@@ -392,9 +404,8 @@ class LM:Applet from Panel:Applet
   }
 
   private void
-    preferences_cb (BonoboUIComponent *component,
-		    gpointer user_data,
-		    const char *cname)
+    preferences_cb (GtkAction *action,
+		    gpointer user_data)
   {
     Self *self = user_data;
 
@@ -402,17 +413,15 @@ class LM:Applet from Panel:Applet
   }
 
   private void
-    help_cb (BonoboUIComponent *component,
-	     gpointer user_data,
-	     const char *cname)
+    help_cb (GtkAction *action,
+	     gpointer user_data)
   {
     lm_show_help(NULL);
   }
 
   private void
-    about_cb (BonoboUIComponent *component,
-	      gpointer user_data,
-	      const char *cname)
+    about_cb (GtkAction *action,
+	      gpointer user_data)
   {
     Self *self = user_data;
 
@@ -590,7 +599,7 @@ class LM:Applet from Panel:Applet
   public int
     factory_main (void)
   {
-    return panel_applet_factory_main("OAFIID:GNOME_LinkMonitorApplet_Factory",
+    return panel_applet_factory_main("LinkMonitorApplet_Factory",
 				     TYPE_SELF,
 				     self_factory_cb,
 				     NULL);
@@ -710,16 +719,18 @@ class LM:Applet from Panel:Applet
   public void
     get_host_color (self,
 		    const char *name (check null),
-		    GdkColor *color (check null))
+		    GdkRGBA *color (check null))
   {
     GtkWidget *widget = GTK_WIDGET(self);
 
     if (! selfp->host_colors)
       {
 	gtk_widget_ensure_style(widget);
-	selfp->host_colors = lm_color_generator_generate(NUM_HOST_COLORS, &widget->style->base[GTK_STATE_NORMAL]);
+        GdkRGBA bg;
+        gtk_style_context_get_background_color (gtk_widget_get_style_context(widget), GTK_STATE_NORMAL, &bg);
+	selfp->host_colors = lm_color_generator_generate(NUM_HOST_COLORS, &bg);
       }
 
-    *color = g_array_index(selfp->host_colors, GdkColor, g_str_hash(name) % selfp->host_colors->len);
+    *color = g_array_index(selfp->host_colors, GdkRGBA, g_str_hash(name) % selfp->host_colors->len);
   }
 }

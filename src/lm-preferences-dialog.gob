@@ -94,7 +94,7 @@ class LM:Preferences:Dialog from LM:Dialog
     GtkTreeSelection *selection;
 
     lm_container_create_interface(GTK_CONTAINER(self),
-				  PKGDATADIR G_DIR_SEPARATOR_S "preferences-dialog.glade",
+				  PKGDATADIR G_DIR_SEPARATOR_S "preferences-dialog.ui",
 				  "vbox",
 				  "lm_preferences_dialog_",
 				  "scrolled", &selfp->scrolled,
