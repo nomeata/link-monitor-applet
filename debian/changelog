@@ -1,3 +1,9 @@
+link-monitor-applet (3.0-5) UNRELEASED; urgency=low
+
+  * Port applet to gtk3 et. al (Closes: 638090)
+
+ -- Joachim Breitner <nomeata@debian.org>  Sun, 23 Oct 2011 18:47:42 +0200
+
 link-monitor-applet (3.0-4) unstable; urgency=low
 
   * debian/patches/0003-Add-support-for-logarithmic-scale.patch 

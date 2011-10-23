@@ -7,11 +7,9 @@ Build-Depends:
  autotools-dev,
  cdbs (>= 0.4.52),
  libxml-parser-perl,
- libgnomeui-dev,
- libglade2-dev,
- libpanel-applet2-dev,
+ libpanel-applet-4-dev,
  libglib2.0-dev,
- libgtk2.0-dev (>= 2.8.0),
+ libgtk-3-dev,
  gob2 (>= 2.0.16),
  gconf2,
  scrollkeeper,
@@ -28,7 +26,7 @@ Depends:
  link-monitor-applet-common (= ${source:Version}),
  ${shlibs:Depends},
  ${misc:Depends},
- gnome-panel
+ gnome-panel (>= 3)
 Description: GNOME Panel Applet with bar graph of round-trip times to hosts
  Link Monitor Applet is a GNOME Panel Applet displaying the round-trip time to
  one or more hosts in a bar graph, featuring:
