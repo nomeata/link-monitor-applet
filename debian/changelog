@@ -1,3 +1,9 @@
+link-monitor-applet (3.0-6) unstable; urgency=low
+
+  * Improve visual appearance of the gnome3 patch
+
+ -- Joachim Breitner <nomeata@debian.org>  Fri, 11 Nov 2011 23:30:47 +0100
+
 link-monitor-applet (3.0-5) unstable; urgency=low
 
   * Port applet to gtk3 et. al (Closes: 638090)
