@@ -660,13 +660,13 @@ lm_widget_get_origin (GtkWidget *widget,
   g_return_if_fail(yalign >= 0.0 && yalign <= 1.0);
 
   gint natural_width, natural_height, minimal_width, minimal_height;
-  gtk_widget_get_preferred_width(widget, &natural_width, &natural_height);
-  gtk_widget_get_preferred_height(widget, &natural_height, &natural_height);
+  gtk_widget_get_preferred_width(widget, &minimal_width, &natural_width);
+  gtk_widget_get_preferred_height(widget, &minimal_height, &natural_height);
 
   if (x)
-    *x = floor((natural_width - gtk_widget_get_allocated_width(widget)) * xalign);
+    *x = floor((gtk_widget_get_allocated_width(widget) - natural_width) * xalign);
   if (y)
-    *y = floor((natural_height  - gtk_widget_get_allocated_height(widget)) * yalign);
+    *y = floor((gtk_widget_get_allocated_height(widget) - natural_height) * yalign);
 }
 
 void

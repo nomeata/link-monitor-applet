@@ -179,6 +179,8 @@ class LM:Tooltips from G:Object
 	gtk_window_set_resizable(GTK_WINDOW(selfp->window), FALSE);
 	gtk_widget_set_name(selfp->window, "gtk-tooltips");
 	gtk_container_set_border_width(GTK_CONTAINER(selfp->window), selfp->border_width);
+	GtkStyleContext *sc = gtk_widget_get_style_context(selfp->window);
+	gtk_style_context_add_class (sc, GTK_STYLE_CLASS_TOOLTIP);
 
 	g_signal_connect_swapped(selfp->window,
 				 "draw",
@@ -295,11 +297,8 @@ class LM:Tooltips from G:Object
     int height = gtk_widget_get_allocated_height(selfp->window); 	
 
     GtkStyleContext *sc = gtk_widget_get_style_context(selfp->window);
-
-    gtk_style_context_add_class (sc, GTK_STYLE_CLASS_TOOLTIP);
     gtk_render_background(sc, cr, 0, 0, width, height);
     gtk_render_frame(sc, cr, 0, 0, width, height);
-    gtk_style_context_remove_class (sc, GTK_STYLE_CLASS_TOOLTIP);
 
     return FALSE;
   }

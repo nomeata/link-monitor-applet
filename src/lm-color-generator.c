@@ -24,62 +24,44 @@
  */
 
 #include <stdlib.h>
+#include <math.h>
 #include <gtk/gtk.h>
 #include "lm-util.h"
 
 #define MAX_RUN_TIME			3000000
 
-#define MIN_BRIGHTNESS_CONTRAST		75
-#define MIN_COLOR_CONTRAST		200
-
-/* used for clarity: each channel ranges from 0 to 255 */
-typedef struct
-{
-  int red;
-  int green;
-  int blue;
-} W3Color;
+#define MIN_BRIGHTNESS_CONTRAST		(75.0/65535.0)
+#define MIN_COLOR_CONTRAST		(200.0/65535.0)
 
 static const GdkRGBA seed_colors[] = {
-  {  0.0 / 65535.0,  64764.0 / 65535.0, 	59881.0 / 65535.0, 	20303.0 / 65535.0	}, /* Butter #1 */
-  {  0.0 / 65535.0,  60909.0 / 65535.0, 	54484.0 / 65535.0, 	0.0 / 65535.0	}, /* Butter #2 */
-  {  0.0 / 65535.0,  50372.0 / 65535.0, 	41120.0 / 65535.0, 	0.0 / 65535.0	}, /* Butter #3 */
-  {  0.0 / 65535.0,  64764.0 / 65535.0, 	44975.0 / 65535.0, 	15934.0 / 65535.0	}, /* Orange #1 */
-  {  0.0 / 65535.0,  62965.0 / 65535.0, 	31097.0 / 65535.0, 	0.0 / 65535.0	}, /* Orange #2 */
-  {  0.0 / 65535.0,  52942.0 / 65535.0, 	23644.0 / 65535.0, 	0.0 / 65535.0	}, /* Orange #3 */
-  {  0.0 / 65535.0,  59811.0 / 65535.0, 	47545.0 / 65535.0, 	28270.0 / 65535.0	}, /* Chocolate #1 */
-  {  0.0 / 65535.0,  49601.0 / 65535.0, 	32125.0 / 65535.0, 	4369.0 / 65535.0	}, /* Chocolate #2 */
-  {  0.0 / 65535.0,  36751.0 / 65535.0, 	22873.0 / 65535.0, 	514.0 / 65535.0	}, /* Chocolate #3 */
-  {  0.0 / 65535.0,  35466.0 / 65535.0, 	58082.0 / 65535.0, 	13364.0 / 65535.0	}, /* Chameleon #1 */
-  {  0.0 / 65535.0,  29555.0 / 65535.0, 	53970.0 / 65535.0, 	5654.0 / 65535.0	}, /* Chameleon #2 */
-  {  0.0 / 65535.0,  20046.0 / 65535.0, 	39578.0 / 65535.0, 	1542.0 / 65535.0	}, /* Chameleon #3 */
-  {  0.0 / 65535.0,  29289.0 / 65535.0, 	40863.0 / 65535.0, 	53199.0 / 65535.0	}, /* Sky Blue #1 */
-  {  0.0 / 65535.0,  13364.0 / 65535.0, 	25957.0 / 65535.0, 	42148.0 / 65535.0	}, /* Sky Blue #2 */
-  {  0.0 / 65535.0,  8224.0 / 65535.0, 	19018.0 / 65535.0, 	34695.0 / 65535.0	}, /* Sky Blue #3 */
-  {  0.0 / 65535.0,  44461.0 / 65535.0, 	32639.0 / 65535.0, 	43167.0 / 65535.0	}, /* Plum #1 */
-  {  0.0 / 65535.0,  30069.0 / 65535.0, 	20560.0 / 65535.0, 	31611.0 / 65535.0	}, /* Plum #2 */
-  {  0.0 / 65535.0,  23644.0 / 65535.0, 	13621.0 / 65535.0, 	26214.0 / 65535.0	}, /* Plum #3 */
-  {  0.0 / 65535.0,  61423.0 / 65535.0, 	10537.0 / 65535.0, 	10537.0 / 65535.0	}, /* Scarlet Red #1 */
-  {  0.0 / 65535.0,  52428.0 / 65535.0, 	0.0 / 65535.0, 	0.0 / 65535.0	}, /* Scarlet Red #2 */
-  {  0.0 / 65535.0,  42148.0 / 65535.0, 	0.0 / 65535.0, 	0.0 / 65535.0	}, /* Scarlet Red #3 */
-  {  0.0 / 65535.0,  34952.0 / 65535.0, 	35466.0 / 65535.0, 	34181.0 / 65535.0	}, /* Aluminium #4*/
-  {  0.0 / 65535.0,  21845.0 / 65535.0, 	22359.0 / 65535.0, 	21331.0 / 65535.0	}, /* Aluminium #5*/
-  {  0.0 / 65535.0,  11822.0 / 65535.0, 	13364.0 / 65535.0, 	13878.0 / 65535.0	}  /* Aluminium #6*/
+  {  64764.0 / 65535.0, 	59881.0 / 65535.0, 	20303.0 / 65535.0,	0.0	}, /* Butter #1 */
+  {  60909.0 / 65535.0, 	54484.0 / 65535.0, 	0.0 / 65535.0,	0.0	}, /* Butter #2 */
+  {  50372.0 / 65535.0, 	41120.0 / 65535.0, 	0.0 / 65535.0,	0.0	}, /* Butter #3 */
+  {  64764.0 / 65535.0, 	44975.0 / 65535.0, 	15934.0 / 65535.0,	0.0	}, /* Orange #1 */
+  {  62965.0 / 65535.0, 	31097.0 / 65535.0, 	0.0 / 65535.0,	0.0	}, /* Orange #2 */
+  {  52942.0 / 65535.0, 	23644.0 / 65535.0, 	0.0 / 65535.0,	0.0	}, /* Orange #3 */
+  {  59811.0 / 65535.0, 	47545.0 / 65535.0, 	28270.0 / 65535.0,	0.0	}, /* Chocolate #1 */
+  {  49601.0 / 65535.0, 	32125.0 / 65535.0, 	4369.0 / 65535.0,	0.0	}, /* Chocolate #2 */
+  {  36751.0 / 65535.0, 	22873.0 / 65535.0, 	514.0 / 65535.0,	0.0	}, /* Chocolate #3 */
+  {  35466.0 / 65535.0, 	58082.0 / 65535.0, 	13364.0 / 65535.0,	0.0	}, /* Chameleon #1 */
+  {  29555.0 / 65535.0, 	53970.0 / 65535.0, 	5654.0 / 65535.0,	0.0	}, /* Chameleon #2 */
+  {  20046.0 / 65535.0, 	39578.0 / 65535.0, 	1542.0 / 65535.0,	0.0	}, /* Chameleon #3 */
+  {  29289.0 / 65535.0, 	40863.0 / 65535.0, 	53199.0 / 65535.0,	0.0	}, /* Sky Blue #1 */
+  {  13364.0 / 65535.0, 	25957.0 / 65535.0, 	42148.0 / 65535.0,	0.0	}, /* Sky Blue #2 */
+  {  8224.0 / 65535.0, 	19018.0 / 65535.0, 	34695.0 / 65535.0,	0.0	}, /* Sky Blue #3 */
+  {  44461.0 / 65535.0, 	32639.0 / 65535.0, 	43167.0 / 65535.0,	0.0	}, /* Plum #1 */
+  {  30069.0 / 65535.0, 	20560.0 / 65535.0, 	31611.0 / 65535.0,	0.0	}, /* Plum #2 */
+  {  23644.0 / 65535.0, 	13621.0 / 65535.0, 	26214.0 / 65535.0,	0.0	}, /* Plum #3 */
+  {  61423.0 / 65535.0, 	10537.0 / 65535.0, 	10537.0 / 65535.0,	0.0	}, /* Scarlet Red #1 */
+  {  52428.0 / 65535.0, 	0.0 / 65535.0, 	0.0 / 65535.0,	0.0	}, /* Scarlet Red #2 */
+  {  42148.0 / 65535.0, 	0.0 / 65535.0, 	0.0 / 65535.0,	0.0	}, /* Scarlet Red #3 */
+  {  34952.0 / 65535.0, 	35466.0 / 65535.0, 	34181.0 / 65535.0,	0.0	}, /* Aluminium #4*/
+  {  21845.0 / 65535.0, 	22359.0 / 65535.0, 	21331.0 / 65535.0,	0.0	}, /* Aluminium #5*/
+  {  11822.0 / 65535.0, 	13364.0 / 65535.0, 	13878.0 / 65535.0,	0.0	}  /* Aluminium #6*/
 };
 
-static void
-w3_color_init (W3Color *out, const GdkRGBA *in)
-{
-  g_return_if_fail(out != NULL);
-  g_return_if_fail(in != NULL);
-
-  out->red = in->red * 256.0;
-  out->green = in->green * 256.0;
-  out->blue = in->blue * 256.0;
-}
-
-static int
-w3_color_get_brightness (const W3Color *color)
+static double
+color_get_brightness (const GdkRGBA *color)
 {
   g_return_val_if_fail(color != NULL, 0);
 
@@ -89,24 +71,19 @@ w3_color_get_brightness (const W3Color *color)
 static gboolean
 color_is_visible (const GdkRGBA *fg,
 		  const GdkRGBA *bg,
-		  int color_contrast,
-		  int brightness_contrast)
+		  double color_contrast,
+		  double brightness_contrast)
 {
-  W3Color wfg;
-  W3Color wbg;
-  int fg_brightness;
-  int bg_brightness;
-  int brightness_diff;
-  int color_diff;
+  double fg_brightness;
+  double bg_brightness;
+  double brightness_diff;
+  double color_diff;
 
-  w3_color_init(&wfg, fg);
-  w3_color_init(&wbg, bg);
+  fg_brightness = color_get_brightness(fg);
+  bg_brightness = color_get_brightness(bg);
 
-  fg_brightness = w3_color_get_brightness(&wfg);
-  bg_brightness = w3_color_get_brightness(&wbg);
-
-  brightness_diff = abs(fg_brightness - bg_brightness);
-  color_diff = abs(fg->red - bg->red) + abs(fg->green - bg->green) + abs(fg->blue - bg->blue);
+  brightness_diff = fabs(color_get_brightness(fg) - color_get_brightness(bg));
+  color_diff = fabs(fg->red - bg->red) + fabs(fg->green - bg->green) + fabs(fg->blue - bg->blue);
 
   return color_diff > color_contrast && brightness_diff > brightness_contrast;
 }
@@ -137,7 +114,7 @@ lm_color_generator_generate (int count, const GdkRGBA *bg)
 
   while (colors->len < count)
     {
-      GdkRGBA color = { 0.0, (rand() % 0xffff)/65535.0, (rand() % 0xffff)/65535.0, (rand() % 0xffff)/65535.0 };
+      GdkRGBA color = {(rand() % 0xffff)/65535.0, (rand() % 0xffff)/65535.0, (rand() % 0xffff)/65535.0, 0.0 };
 
       if (lm_get_ticks() >= breakout_time)
 	{
@@ -145,8 +122,7 @@ lm_color_generator_generate (int count, const GdkRGBA *bg)
 	  break;
 	}
 
-      // GTK3TODO
-      if (1) // (color_is_visible(&color, bg, MIN_COLOR_CONTRAST, MIN_BRIGHTNESS_CONTRAST))
+      if (color_is_visible(&color, bg, MIN_COLOR_CONTRAST, MIN_BRIGHTNESS_CONTRAST))
 	g_array_append_val(colors, color);
     }
 
