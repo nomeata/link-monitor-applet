@@ -1,3 +1,9 @@
+link-monitor-applet (3.0-7) unstable; urgency=low
+
+  * Fix tooltip positioning code.
+
+ -- Joachim Breitner <nomeata@debian.org>  Sun, 13 Nov 2011 17:52:07 +0100
+
 link-monitor-applet (3.0-6) unstable; urgency=low
 
   * Improve visual appearance of the gnome3 patch
