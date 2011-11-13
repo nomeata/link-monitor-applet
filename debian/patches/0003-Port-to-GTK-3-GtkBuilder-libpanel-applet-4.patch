@@ -1,4 +1,4 @@
-From 5fcf68abcbe169e1097bf8c275b1b4eeb2bacf7c Mon Sep 17 00:00:00 2001
+From f959cfc238c950cd6635ec9664b9a0b0e48f6fda Mon Sep 17 00:00:00 2001
 From: Joachim Breitner <mail@joachim-breitner.de>
 Date: Fri, 14 Oct 2011 11:42:49 +0200
 Subject: Port to GTK+3, GtkBuilder, libpanel-applet-4
@@ -25,14 +25,14 @@ Subject: Port to GTK+3, GtkBuilder, libpanel-applet-4
  src/lm-line-graph.gob                     |  279 ++++++++++-----
  src/lm-main.c                             |   39 ++-
  src/lm-preferences-dialog.gob             |   24 ++-
- src/lm-tooltips.gob                       |   78 ++--
+ src/lm-tooltips.gob                       |   76 ++--
  src/lm-util.c                             |  152 ++++-----
  src/lm-util.h                             |   25 +-
  ui/GNOME_LinkMonitorApplet.xml            |   12 +-
  ui/lm-style.css                           |   11 +
  ui/preferences-dialog.glade               |  405 --------------------
  ui/preferences-dialog.ui                  |  573 +++++++++++++++++++++++++++++
- 28 files changed, 1377 insertions(+), 989 deletions(-)
+ 28 files changed, 1375 insertions(+), 989 deletions(-)
  delete mode 100644 data/GNOME_LinkMonitorApplet.server.in.in
  create mode 100644 data/LinkMonitorApplet.panel-applet.in.in
  create mode 100644 data/LinkMonitorApplet.service.in.in
@@ -2134,7 +2134,7 @@ index 394d936..edc4de8 100644
    protected void
      tooltip_graph_span_scale_value_changed_h (self, GtkRange *range)
 diff --git a/src/lm-tooltips.gob b/src/lm-tooltips.gob
-index 6cc2b31..41a4af6 100644
+index 6cc2b31..4c373f8 100644
 --- a/src/lm-tooltips.gob
 +++ b/src/lm-tooltips.gob
 @@ -179,9 +179,11 @@ class LM:Tooltips from G:Object
@@ -2208,7 +2208,7 @@ index 6cc2b31..41a4af6 100644
      if (child)
        gtk_container_remove(GTK_CONTAINER(selfp->window), child);
  
-@@ -352,14 +350,11 @@ class LM:Tooltips from G:Object
+@@ -352,14 +350,9 @@ class LM:Tooltips from G:Object
      w = requisition.width;
      h = requisition.height;
  
@@ -2218,16 +2218,14 @@ index 6cc2b31..41a4af6 100644
 -	x += widget->allocation.x;
 -	y += widget->allocation.y;
 -      }
-+    GtkWidget *other_root = gtk_widget_get_toplevel(widget);
-+    gtk_window_get_position(GTK_WINDOW(other_root), &x, &y);
-+    gtk_widget_translate_coordinates(widget, other_root, x, y, &x, &y);
++    gdk_window_get_origin(gtk_widget_get_window(widget), &x, &y);
  
 -    x += widget->allocation.width / 2;
 +    x += gtk_widget_get_allocated_width(widget)/2;
  
      if (! keyboard_mode)
        gdk_window_get_pointer(gdk_screen_get_root_window(screen), &x, NULL, NULL);
-@@ -380,11 +375,11 @@ class LM:Tooltips from G:Object
+@@ -380,11 +373,11 @@ class LM:Tooltips from G:Object
      else if (x < monitor.x)
        x = monitor.x;
  
@@ -2241,7 +2239,7 @@ index 6cc2b31..41a4af6 100644
  
      /*
       * The following block is not part of GTK+ and has been added to
-@@ -407,7 +402,7 @@ class LM:Tooltips from G:Object
+@@ -407,7 +400,7 @@ class LM:Tooltips from G:Object
    {
      Self *self = SELF(data);
  
@@ -2250,7 +2248,7 @@ index 6cc2b31..41a4af6 100644
        self_draw_tips(self);
  
      selfp->timeout_id = 0;
-@@ -419,7 +414,7 @@ class LM:Tooltips from G:Object
+@@ -419,7 +412,7 @@ class LM:Tooltips from G:Object
    {
      if (selfp->window)
        {
@@ -2259,7 +2257,7 @@ index 6cc2b31..41a4af6 100644
  	  g_get_current_time(&selfp->last_popdown);
  	gtk_widget_hide(selfp->window);
        }
-@@ -436,7 +431,7 @@ class LM:Tooltips from G:Object
+@@ -436,7 +429,7 @@ class LM:Tooltips from G:Object
  	  {
  	    TooltipsData *data = l->data;
  
@@ -2268,7 +2266,7 @@ index 6cc2b31..41a4af6 100644
  	      {
  		selfp->active_data = data;
  		break;
-@@ -506,7 +501,7 @@ class LM:Tooltips from G:Object
+@@ -506,7 +499,7 @@ class LM:Tooltips from G:Object
  
      if (GTK_IS_WINDOW(toplevel))
        {
@@ -2277,7 +2275,7 @@ index 6cc2b31..41a4af6 100644
  
  	g_object_set_data(G_OBJECT(toplevel), TOOLTIPS_KEYBOARD_MODE, GINT_TO_POINTER(TRUE));
  
-@@ -522,7 +517,7 @@ class LM:Tooltips from G:Object
+@@ -522,7 +515,7 @@ class LM:Tooltips from G:Object
  
      if (GTK_IS_WINDOW(toplevel))
        {
@@ -2286,7 +2284,7 @@ index 6cc2b31..41a4af6 100644
  
  	if (focus)
  	  self_hide_tip(focus);
-@@ -592,28 +587,29 @@ class LM:Tooltips from G:Object
+@@ -592,28 +585,29 @@ class LM:Tooltips from G:Object
  	    break;
  
  	  case GDK_ENTER_NOTIFY:

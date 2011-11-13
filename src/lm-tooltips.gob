@@ -350,9 +350,7 @@ class LM:Tooltips from G:Object
     w = requisition.width;
     h = requisition.height;
 
-    GtkWidget *other_root = gtk_widget_get_toplevel(widget);
-    gtk_window_get_position(GTK_WINDOW(other_root), &x, &y);
-    gtk_widget_translate_coordinates(widget, other_root, x, y, &x, &y);
+    gdk_window_get_origin(gtk_widget_get_window(widget), &x, &y);
 
     x += gtk_widget_get_allocated_width(widget)/2;
 
