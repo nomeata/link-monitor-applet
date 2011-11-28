@@ -50,3 +50,22 @@ Description: GNOME Panel Applet with graph of round-trip times to hosts (data)
   * HIG 2.0 compliance
  .
  This package contains the architecture independent files (mostly flags).
+
+Package: link-monitor-applet-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends:
+ link-monitor-applet (= ${binary:Version}),
+ ${misc:Depends}
+Description: GNOME Panel Applet with bar graph of round-trip times to hosts
+ Link Monitor Applet is a GNOME Panel Applet displaying the round-trip time to
+ one or more hosts in a bar graph, featuring:
+  * Round-trip time plot graphs
+  * Country flags and names
+  * full ICMP and ICMPv6 support
+  * configurable scale and delays
+  * HIG 2.0 compliance
+ .
+ This package contains debugging symbols for link-monitor-applet.
+

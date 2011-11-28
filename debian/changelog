@@ -1,3 +1,9 @@
+link-monitor-applet (3.0-8) UNRELEASED; urgency=low
+
+  * Pass -g via CFLAGS and add -dbg package. 
+
+ -- Joachim Breitner <nomeata@debian.org>  Mon, 28 Nov 2011 22:07:42 +0100
+
 link-monitor-applet (3.0-7) unstable; urgency=low
 
   * Fix tooltip positioning code.
