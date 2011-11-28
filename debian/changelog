@@ -1,8 +1,8 @@
-link-monitor-applet (3.0-8) UNRELEASED; urgency=low
+link-monitor-applet (3.0-8) unstable; urgency=low
 
   * Pass -g via CFLAGS and add -dbg package. 
 
- -- Joachim Breitner <nomeata@debian.org>  Mon, 28 Nov 2011 22:07:42 +0100
+ -- Joachim Breitner <nomeata@debian.org>  Mon, 28 Nov 2011 22:14:50 +0100
 
 link-monitor-applet (3.0-7) unstable; urgency=low
 
