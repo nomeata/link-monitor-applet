@@ -225,7 +225,7 @@ jb_message_result_string_format (const char *format, ...)
   g_free(message);
 }
 
-static void
+static void __attribute__((format (gnu_printf, 2,0)))
 print_warning_or_error (const char *prefix, const char *format, va_list args)
 {
   char *message;
