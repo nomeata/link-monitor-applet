@@ -1,8 +1,8 @@
-link-monitor-applet (3.0-9) UNRELEASED; urgency=low
+link-monitor-applet (3.0-9) unstable; urgency=low
 
   * Fix compiler warnings (Closes: #707474) 
 
- -- Joachim Breitner <nomeata@debian.org>  Fri, 10 May 2013 20:50:41 +0200
+ -- Joachim Breitner <nomeata@debian.org>  Fri, 10 May 2013 20:53:55 +0200
 
 link-monitor-applet (3.0-8) unstable; urgency=low
 
