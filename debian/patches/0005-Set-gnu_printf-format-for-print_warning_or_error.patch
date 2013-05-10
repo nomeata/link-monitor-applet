@@ -1,0 +1,22 @@
+From c13f577b424898bd303ec8ad0a621f0c31a64538 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Fri, 10 May 2013 20:49:39 +0200
+Subject: Set gnu_printf format for print_warning_or_error
+
+---
+ jbsrc/lib/jb-util.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/jbsrc/lib/jb-util.c b/jbsrc/lib/jb-util.c
+index e05ab2b..b4b759e 100644
+--- a/jbsrc/lib/jb-util.c
++++ b/jbsrc/lib/jb-util.c
+@@ -225,7 +225,7 @@ jb_message_result_string_format (const char *format, ...)
+   g_free(message);
+ }
+ 
+-static void
++static void __attribute__((format (gnu_printf, 2,0)))
+ print_warning_or_error (const char *prefix, const char *format, va_list args)
+ {
+   char *message;

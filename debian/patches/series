@@ -2,3 +2,4 @@
 0002-gob-2.0.16-compatibility.patch
 0003-Port-to-GTK-3-GtkBuilder-libpanel-applet-4.patch
 0004-Do-not-call-g_type_init-is-deprecated.patch
+0005-Set-gnu_printf-format-for-print_warning_or_error.patch
