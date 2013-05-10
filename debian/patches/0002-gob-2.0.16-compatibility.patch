@@ -4,10 +4,10 @@ Date: Fri, 14 Oct 2011 18:53:43 +0200
 Subject: gob 2.0.16 compatibility
 
 ---
- src/lm-data-set.gob |    2 +-
- src/lm-host.gob     |    5 +++--
- src/lm-shell.gob    |    2 +-
- src/lm-tooltips.gob |    2 +-
+ src/lm-data-set.gob | 2 +-
+ src/lm-host.gob     | 5 +++--
+ src/lm-shell.gob    | 2 +-
+ src/lm-tooltips.gob | 2 +-
  4 files changed, 6 insertions(+), 5 deletions(-)
 
 diff --git a/src/lm-data-set.gob b/src/lm-data-set.gob
@@ -74,6 +74,3 @@ index 6965713..6cc2b31 100644
  {
    private GtkWidget *window;
    private TooltipsData *active_data;
--- 
-1.7.7.2
-

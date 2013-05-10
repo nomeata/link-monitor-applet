@@ -4,8 +4,8 @@ Date: Sat, 3 Apr 2010 18:34:51 +0200
 Subject: disable-scrollkeeper-update.diff
 
 ---
- jbsrc/lib/jb-resource.c |    2 ++
- 1 files changed, 2 insertions(+), 0 deletions(-)
+ jbsrc/lib/jb-resource.c | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/jbsrc/lib/jb-resource.c b/jbsrc/lib/jb-resource.c
 index 35ec368..014faac 100644
@@ -23,6 +23,3 @@ index 35ec368..014faac 100644
  
    g_free(outomf);
    g_free(helpdir);
--- 
-1.7.7.2
-

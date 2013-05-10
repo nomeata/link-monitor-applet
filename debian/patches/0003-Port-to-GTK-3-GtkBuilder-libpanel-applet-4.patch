@@ -4,34 +4,34 @@ Date: Fri, 14 Oct 2011 11:42:49 +0200
 Subject: Port to GTK+3, GtkBuilder, libpanel-applet-4
 
 ---
- data/GNOME_LinkMonitorApplet.server.in.in |   28 --
- data/LinkMonitorApplet.panel-applet.in.in |   12 +
- data/LinkMonitorApplet.service.in.in      |    4 +
- data/link-monitor-applet.schemas.in       |   10 +
- jbsrc/jb.c                                |   11 +-
- jbsrc/lib/jb-group.c                      |   30 ++
- jbsrc/lib/jb-group.h                      |    4 +
- src/lm-about-dialog.gob                   |    9 +-
- src/lm-applet.gob                         |  173 +++++----
- src/lm-bar-graph.gob                      |  134 ++++---
- src/lm-cell-renderer-color.gob            |   61 ++--
- src/lm-color-generator.c                  |  117 +++----
- src/lm-color-generator.h                  |    2 +-
- src/lm-dialog.gob                         |    2 -
- src/lm-framed-image.gob                   |   74 +++--
- src/lm-host-frontend.gob                  |   26 +-
- src/lm-host-view.gob                      |   26 +-
- src/lm-line-graph-icon.gob                |   45 ++-
- src/lm-line-graph.gob                     |  279 ++++++++++-----
- src/lm-main.c                             |   39 ++-
- src/lm-preferences-dialog.gob             |   24 ++-
- src/lm-tooltips.gob                       |   76 ++--
- src/lm-util.c                             |  152 ++++-----
- src/lm-util.h                             |   25 +-
- ui/GNOME_LinkMonitorApplet.xml            |   12 +-
- ui/lm-style.css                           |   11 +
- ui/preferences-dialog.glade               |  405 --------------------
- ui/preferences-dialog.ui                  |  573 +++++++++++++++++++++++++++++
+ data/GNOME_LinkMonitorApplet.server.in.in |  28 --
+ data/LinkMonitorApplet.panel-applet.in.in |  12 +
+ data/LinkMonitorApplet.service.in.in      |   4 +
+ data/link-monitor-applet.schemas.in       |  10 +
+ jbsrc/jb.c                                |  11 +-
+ jbsrc/lib/jb-group.c                      |  30 ++
+ jbsrc/lib/jb-group.h                      |   4 +
+ src/lm-about-dialog.gob                   |   9 +-
+ src/lm-applet.gob                         | 173 +++++----
+ src/lm-bar-graph.gob                      | 134 ++++---
+ src/lm-cell-renderer-color.gob            |  61 ++--
+ src/lm-color-generator.c                  | 117 +++---
+ src/lm-color-generator.h                  |   2 +-
+ src/lm-dialog.gob                         |   2 -
+ src/lm-framed-image.gob                   |  74 ++--
+ src/lm-host-frontend.gob                  |  26 +-
+ src/lm-host-view.gob                      |  26 +-
+ src/lm-line-graph-icon.gob                |  45 ++-
+ src/lm-line-graph.gob                     | 279 ++++++++++-----
+ src/lm-main.c                             |  39 +-
+ src/lm-preferences-dialog.gob             |  24 +-
+ src/lm-tooltips.gob                       |  76 ++--
+ src/lm-util.c                             | 152 ++++----
+ src/lm-util.h                             |  25 +-
+ ui/GNOME_LinkMonitorApplet.xml            |  12 +-
+ ui/lm-style.css                           |  11 +
+ ui/preferences-dialog.glade               | 405 ---------------------
+ ui/preferences-dialog.ui                  | 573 ++++++++++++++++++++++++++++++
  28 files changed, 1375 insertions(+), 989 deletions(-)
  delete mode 100644 data/GNOME_LinkMonitorApplet.server.in.in
  create mode 100644 data/LinkMonitorApplet.panel-applet.in.in
@@ -3756,6 +3756,3 @@ index 0000000..6b497cd
 +    </action-widgets>
 +  </object>
 +</interface>
--- 
-1.7.7.2
-

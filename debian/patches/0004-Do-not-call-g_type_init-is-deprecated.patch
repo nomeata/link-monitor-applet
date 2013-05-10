@@ -1,0 +1,22 @@
+From 341a74b48b1279edbe2cbb602c039733ad4a8804 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Fri, 10 May 2013 20:43:33 +0200
+Subject: Do not call g_type_init(), is deprecated
+
+---
+ jbsrc/lib/jb-main.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/jbsrc/lib/jb-main.c b/jbsrc/lib/jb-main.c
+index aa69c00..48e5846 100644
+--- a/jbsrc/lib/jb-main.c
++++ b/jbsrc/lib/jb-main.c
+@@ -161,8 +161,6 @@ jb_main (int argc,
+ 
+   g_log_set_fatal_mask(G_LOG_DOMAIN, G_LOG_LEVEL_CRITICAL);
+ 
+-  g_type_init();
+-
+   jb_topsrcdir = g_get_current_dir();
+ 
+   jb_set_log_file("build/jb.log");
