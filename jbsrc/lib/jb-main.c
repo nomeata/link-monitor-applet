@@ -161,8 +161,6 @@ jb_main (int argc,
 
   g_log_set_fatal_mask(G_LOG_DOMAIN, G_LOG_LEVEL_CRITICAL);
 
-  g_type_init();
-
   jb_topsrcdir = g_get_current_dir();
 
   jb_set_log_file("build/jb.log");
