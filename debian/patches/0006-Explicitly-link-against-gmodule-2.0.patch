@@ -1,0 +1,22 @@
+From 495116db1c01f4c494fdd1d8baa607dad3ae8be8 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Sat, 22 Jun 2013 22:31:00 +0200
+Subject: Explicitly link against gmodule-2.0
+
+---
+ jbsrc/jb.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/jbsrc/jb.c b/jbsrc/jb.c
+index 3a49ca2..fc64040 100644
+--- a/jbsrc/jb.c
++++ b/jbsrc/jb.c
+@@ -136,7 +136,7 @@ jb_package_configure (void)
+ 
+   jb_check_reentrant_dns_resolver();
+ 
+-  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-3.0 libpanelapplet-4.0");
++  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-3.0 libpanelapplet-4.0 gmodule-2.0");
+ 
+   if (jb_variable_get_bool("geoip"))
+     {

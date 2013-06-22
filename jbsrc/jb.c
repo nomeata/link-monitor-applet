@@ -136,7 +136,7 @@ jb_package_configure (void)
 
   jb_check_reentrant_dns_resolver();
 
-  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-3.0 libpanelapplet-4.0");
+  jb_require_packages("GNOME", "gnome", "gthread-2.0 gtk+-3.0 libpanelapplet-4.0 gmodule-2.0");
 
   if (jb_variable_get_bool("geoip"))
     {
