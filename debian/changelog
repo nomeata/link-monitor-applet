@@ -1,3 +1,9 @@
+link-monitor-applet (3.0-10) UNRELEASED; urgency=low
+
+  * Explicitly link against gmodule-2.0 (Closes: #713623)
+
+ -- Joachim Breitner <nomeata@debian.org>  Sat, 22 Jun 2013 22:31:50 +0200
+
 link-monitor-applet (3.0-9) unstable; urgency=low
 
   * Fix compiler warnings (Closes: #707474) 
