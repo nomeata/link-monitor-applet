@@ -477,7 +477,7 @@ jb_parse_uint32 (const char *str, int base, guint32 *value, GError **err)
 
   if (v > G_MAXUINT32)
     {
-      g_set_error(err, 0, 0, "number out of range");
+      g_set_error(err, jb_error_quark(), 0, "number out of range");
       return FALSE;
     }
 
@@ -497,13 +497,13 @@ jb_parse_uint64 (const char *str, int base, guint64 *value, GError **err)
 
   if (*end != '\0')
     {
-      g_set_error(err, 0, 0, "invalid number");
+      g_set_error(err, jb_error_quark(), 0, "invalid number");
       return FALSE;
     }
 
   if (v == G_MAXUINT64 && errno == ERANGE)
     {
-      g_set_error(err, 0, 0, "number out of range");
+      g_set_error(err, jb_error_quark(), 0, "number out of range");
       return FALSE;
     }
 
@@ -672,7 +672,7 @@ jb_fchown_by_name (int fd,
       info = getpwnam(owner);
       if (info == NULL)
 	{
-	  g_set_error(err, 0, 0, "unknown user \"%s\"", owner);
+	  g_set_error(err, jb_error_quark(), 0, "unknown user \"%s\"", owner);
 	  return FALSE;
 	}
 
@@ -686,7 +686,7 @@ jb_fchown_by_name (int fd,
       info = getgrnam(group);
       if (group == NULL)
 	{
-	  g_set_error(err, 0, 0, "unknown group \"%s\"", group);
+	  g_set_error(err, jb_error_quark(), 0, "unknown group \"%s\"", group);
 	  return FALSE;
 	}
 
@@ -695,7 +695,7 @@ jb_fchown_by_name (int fd,
 
   if (fchown(fd, uid, gid) < 0)
     {
-      g_set_error(err, 0, 0, "%s", g_strerror(errno));
+      g_set_error(err, jb_error_quark(), 0, "%s", g_strerror(errno));
       return FALSE;
     }
 
@@ -1077,4 +1077,10 @@ jb_string_list_join (GSList *list, const char *separator)
     }
 
   return g_string_free(result, FALSE);
+}
+
+GQuark
+jb_error_quark (void)
+{
+  return g_quark_from_static_string ("jb-error-quark");
 }

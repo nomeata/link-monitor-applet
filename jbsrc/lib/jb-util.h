@@ -28,6 +28,7 @@
 
 #define JB_MODE_FORMAT	"0%03o"
 
+
 void jb_set_log_file (const char *filename);
 void jb_log (const char *format, ...) G_GNUC_PRINTF(1, 2);
 
@@ -125,5 +126,7 @@ gboolean jb_is_uptodate_list (const char *dst, GSList *src_list);
 gboolean jb_is_uptodate_list_list (GSList *dst_list, GSList *src_list);
 
 char *jb_string_list_join (GSList *list, const char *separator);
+
+GQuark jb_error_quark(void);
 
 #endif /* _JB_UTIL_H */

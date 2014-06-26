@@ -548,7 +548,7 @@ install_file_real (const char *srcfile,
   in = open(srcfile, O_RDONLY);
   if (in < 0)
     {
-      g_set_error(err, 0, 0, "cannot open %s for reading: %s", srcfile, g_strerror(errno));
+      g_set_error(err, jb_error_quark(), 0, "cannot open %s for reading: %s", srcfile, g_strerror(errno));
       return FALSE;
     }
 
@@ -566,7 +566,7 @@ install_file_real (const char *srcfile,
       out = open(dstfile, O_CREAT | O_WRONLY | O_TRUNC, mode);
       if (out < 0)
 	{
-	  g_set_error(err, 0, 0, "cannot open %s for writing: %s", dstfile, g_strerror(errno));
+	  g_set_error(err, jb_error_quark(), 0, "cannot open %s for writing: %s", dstfile, g_strerror(errno));
 	  goto error;
 	}
     }
@@ -580,7 +580,7 @@ install_file_real (const char *srcfile,
       bytes_read = read(in, buf, sizeof(buf));
       if (bytes_read < 0)
 	{
-	  g_set_error(err, 0, 0, "cannot read from %s: %s", srcfile, g_strerror(errno));
+	  g_set_error(err, jb_error_quark(), 0, "cannot read from %s: %s", srcfile, g_strerror(errno));
 	  goto error;
 	}
       if (bytes_read == 0)
@@ -589,12 +589,12 @@ install_file_real (const char *srcfile,
       bytes_written = write(out, buf, bytes_read);
       if (bytes_written < 0)
 	{
-	  g_set_error(err, 0, 0, "cannot write to %s: %s", dstfile, g_strerror(errno));
+	  g_set_error(err, jb_error_quark(), 0, "cannot write to %s: %s", dstfile, g_strerror(errno));
 	  goto error;
 	}
       if (bytes_written != bytes_read)
 	{
-	  g_set_error(err, 0, 0, "cannot write to %s", dstfile);
+	  g_set_error(err, jb_error_quark(), 0, "cannot write to %s", dstfile);
 	  goto error;
 	}
     }
@@ -614,11 +614,11 @@ install_file_real (const char *srcfile,
       if (! jb_fchown_by_name(out, owner, group, &tmp_err))
 	{
 	  if (owner != NULL && group != NULL)
-	    g_set_error(err, 0, 0, "cannot chown %s to %s:%s: %s", dstfile, owner, group, tmp_err->message);
+	    g_set_error(err, jb_error_quark(), 0, "cannot chown %s to %s:%s: %s", dstfile, owner, group, tmp_err->message);
 	  else if (owner != NULL)
-	    g_set_error(err, 0, 0, "cannot chown %s to owner %s: %s", dstfile, owner, tmp_err->message);
+	    g_set_error(err, jb_error_quark(), 0, "cannot chown %s to owner %s: %s", dstfile, owner, tmp_err->message);
 	  else
-	    g_set_error(err, 0, 0, "cannot chown %s to group %s: %s", dstfile, group, tmp_err->message);
+	    g_set_error(err, jb_error_quark(), 0, "cannot chown %s to group %s: %s", dstfile, group, tmp_err->message);
 
 	  g_error_free(tmp_err);
 	  goto error;
@@ -632,13 +632,13 @@ install_file_real (const char *srcfile,
 
   if (fchmod(out, mode) < 0)
     {
-      g_set_error(err, 0, 0, "cannot chmod %s to " JB_MODE_FORMAT ": %s", dstfile, (unsigned int) mode, g_strerror(errno));
+      g_set_error(err, jb_error_quark(), 0, "cannot chmod %s to " JB_MODE_FORMAT ": %s", dstfile, (unsigned int) mode, g_strerror(errno));
       goto error;
     }
 
   if (close(out) < 0)
     {
-      g_set_error(err, 0, 0, "cannot close %s: %s", dstfile, g_strerror(errno));
+      g_set_error(err, jb_error_quark(), 0, "cannot close %s: %s", dstfile, g_strerror(errno));
       goto error;
     }
 

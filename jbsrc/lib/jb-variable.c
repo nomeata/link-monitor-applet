@@ -77,7 +77,7 @@ bool_from_string (const char *str, GValue *value, GError **err)
     g_value_set_boolean(value, FALSE);
   else
     {
-      g_set_error(err, 0, 0, "\"yes\" or \"no\" expected");
+      g_set_error(err, jb_error_quark(), 0, "\"yes\" or \"no\" expected");
       return FALSE;
     }
 
@@ -121,7 +121,7 @@ mode_from_string (const char *str, GValue *value, GError **err)
 
   if ((mode & ~07777) != 0)
     {
-      g_set_error(err, 0, 0, "mode out of range");
+      g_set_error(err, jb_error_quark(), 0, "mode out of range");
       return FALSE;
     }
 
