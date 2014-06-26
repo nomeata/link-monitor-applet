@@ -1,0 +1,23 @@
+From 6f169616038f4d26350c1007ad1efdefdf849dff Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Thu, 26 Jun 2014 13:25:28 -0700
+Subject: Try without -lbsd-compat
+
+---
+ jbsrc/jb.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/jbsrc/jb.c b/jbsrc/jb.c
+index fc64040..0dddb77 100644
+--- a/jbsrc/jb.c
++++ b/jbsrc/jb.c
+@@ -118,7 +118,8 @@ jb_package_configure (void)
+        */
+       jb_variable_set_string("glibc-cflags", "-std=c99 -D_BSD_SOURCE -D_POSIX_C_SOURCE=199309L");
+       jb_variable_set_string("glibc-cppflags", "");
+-      jb_variable_set_string("glibc-ldflags", "-lbsd-compat");
++      // jb_variable_set_string("glibc-ldflags", "-lbsd-compat");
++      jb_variable_set_string("glibc-ldflags", "");
+     }
+   else
+     {
