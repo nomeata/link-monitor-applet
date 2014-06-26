@@ -118,7 +118,8 @@ jb_package_configure (void)
        */
       jb_variable_set_string("glibc-cflags", "-std=c99 -D_BSD_SOURCE -D_POSIX_C_SOURCE=199309L");
       jb_variable_set_string("glibc-cppflags", "");
-      jb_variable_set_string("glibc-ldflags", "-lbsd-compat");
+      // jb_variable_set_string("glibc-ldflags", "-lbsd-compat");
+      jb_variable_set_string("glibc-ldflags", "");
     }
   else
     {
