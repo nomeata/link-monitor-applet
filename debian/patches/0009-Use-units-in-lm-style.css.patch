@@ -1,0 +1,28 @@
+From 2112d31e05a59aff637ef024b3b34979c446dd97 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Thu, 26 Jun 2014 13:31:06 -0700
+Subject: Use units in lm-style.css
+
+---
+ ui/lm-style.css | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/ui/lm-style.css b/ui/lm-style.css
+index 0b5d09a..3df8700 100644
+--- a/ui/lm-style.css
++++ b/ui/lm-style.css
+@@ -1,11 +1,11 @@
+ .lm-frame {
+ 	border-style: inset;
+-	border-width: 1;
+-	padding: 0;
++	border-width: 1px;
++	padding: 0px;
+ 	background-color: #fff;
+ }
+ .lm-flag {
+ 	border-style: inset;
+-	border-width: 1;
++	border-width: 1px;
+ 	background-color: #fff;
+ }

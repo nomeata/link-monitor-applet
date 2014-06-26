@@ -6,3 +6,4 @@
 0006-Explicitly-link-against-gmodule-2.0.patch
 0007-Try-without-lbsd-compat.patch
 0008-Avoid-warning-from-g_set_error-by-passing-in-a-domai.patch
+0009-Use-units-in-lm-style.css.patch

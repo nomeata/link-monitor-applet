@@ -2,6 +2,7 @@ link-monitor-applet (3.0-11) UNRELEASED; urgency=medium
 
   * Avoid warning from g_set_error by passing in a domain
   * Try without -lbsd-compat 
+  * Use units in lm-style.css
 
  -- Joachim Breitner <nomeata@debian.org>  Thu, 26 Jun 2014 13:18:32 -0700
 
