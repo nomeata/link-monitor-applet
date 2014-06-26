@@ -1,0 +1,217 @@
+From 47a09a7badae0f6e910a34ba41053fc0288c5193 Mon Sep 17 00:00:00 2001
+From: Joachim Breitner <mail@joachim-breitner.de>
+Date: Thu, 26 Jun 2014 13:18:01 -0700
+Subject: Avoid warning from g_set_error by passing in a domain
+
+---
+ jbsrc/lib/jb-action.c   | 20 ++++++++++----------
+ jbsrc/lib/jb-util.c     | 18 ++++++++++++------
+ jbsrc/lib/jb-util.h     |  3 +++
+ jbsrc/lib/jb-variable.c |  4 ++--
+ src/lm-icmp.c           |  4 ++--
+ 5 files changed, 29 insertions(+), 20 deletions(-)
+
+diff --git a/jbsrc/lib/jb-action.c b/jbsrc/lib/jb-action.c
+index c11abbf..43aeb0c 100644
+--- a/jbsrc/lib/jb-action.c
++++ b/jbsrc/lib/jb-action.c
+@@ -548,7 +548,7 @@ install_file_real (const char *srcfile,
+   in = open(srcfile, O_RDONLY);
+   if (in < 0)
+     {
+-      g_set_error(err, 0, 0, "cannot open %s for reading: %s", srcfile, g_strerror(errno));
++      g_set_error(err, jb_error_quark(), 0, "cannot open %s for reading: %s", srcfile, g_strerror(errno));
+       return FALSE;
+     }
+ 
+@@ -566,7 +566,7 @@ install_file_real (const char *srcfile,
+       out = open(dstfile, O_CREAT | O_WRONLY | O_TRUNC, mode);
+       if (out < 0)
+ 	{
+-	  g_set_error(err, 0, 0, "cannot open %s for writing: %s", dstfile, g_strerror(errno));
++	  g_set_error(err, jb_error_quark(), 0, "cannot open %s for writing: %s", dstfile, g_strerror(errno));
+ 	  goto error;
+ 	}
+     }
+@@ -580,7 +580,7 @@ install_file_real (const char *srcfile,
+       bytes_read = read(in, buf, sizeof(buf));
+       if (bytes_read < 0)
+ 	{
+-	  g_set_error(err, 0, 0, "cannot read from %s: %s", srcfile, g_strerror(errno));
++	  g_set_error(err, jb_error_quark(), 0, "cannot read from %s: %s", srcfile, g_strerror(errno));
+ 	  goto error;
+ 	}
+       if (bytes_read == 0)
+@@ -589,12 +589,12 @@ install_file_real (const char *srcfile,
+       bytes_written = write(out, buf, bytes_read);
+       if (bytes_written < 0)
+ 	{
+-	  g_set_error(err, 0, 0, "cannot write to %s: %s", dstfile, g_strerror(errno));
++	  g_set_error(err, jb_error_quark(), 0, "cannot write to %s: %s", dstfile, g_strerror(errno));
+ 	  goto error;
+ 	}
+       if (bytes_written != bytes_read)
+ 	{
+-	  g_set_error(err, 0, 0, "cannot write to %s", dstfile);
++	  g_set_error(err, jb_error_quark(), 0, "cannot write to %s", dstfile);
+ 	  goto error;
+ 	}
+     }
+@@ -614,11 +614,11 @@ install_file_real (const char *srcfile,
+       if (! jb_fchown_by_name(out, owner, group, &tmp_err))
+ 	{
+ 	  if (owner != NULL && group != NULL)
+-	    g_set_error(err, 0, 0, "cannot chown %s to %s:%s: %s", dstfile, owner, group, tmp_err->message);
++	    g_set_error(err, jb_error_quark(), 0, "cannot chown %s to %s:%s: %s", dstfile, owner, group, tmp_err->message);
+ 	  else if (owner != NULL)
+-	    g_set_error(err, 0, 0, "cannot chown %s to owner %s: %s", dstfile, owner, tmp_err->message);
++	    g_set_error(err, jb_error_quark(), 0, "cannot chown %s to owner %s: %s", dstfile, owner, tmp_err->message);
+ 	  else
+-	    g_set_error(err, 0, 0, "cannot chown %s to group %s: %s", dstfile, group, tmp_err->message);
++	    g_set_error(err, jb_error_quark(), 0, "cannot chown %s to group %s: %s", dstfile, group, tmp_err->message);
+ 
+ 	  g_error_free(tmp_err);
+ 	  goto error;
+@@ -632,13 +632,13 @@ install_file_real (const char *srcfile,
+ 
+   if (fchmod(out, mode) < 0)
+     {
+-      g_set_error(err, 0, 0, "cannot chmod %s to " JB_MODE_FORMAT ": %s", dstfile, (unsigned int) mode, g_strerror(errno));
++      g_set_error(err, jb_error_quark(), 0, "cannot chmod %s to " JB_MODE_FORMAT ": %s", dstfile, (unsigned int) mode, g_strerror(errno));
+       goto error;
+     }
+ 
+   if (close(out) < 0)
+     {
+-      g_set_error(err, 0, 0, "cannot close %s: %s", dstfile, g_strerror(errno));
++      g_set_error(err, jb_error_quark(), 0, "cannot close %s: %s", dstfile, g_strerror(errno));
+       goto error;
+     }
+ 
+diff --git a/jbsrc/lib/jb-util.c b/jbsrc/lib/jb-util.c
+index b4b759e..4eb1c11 100644
+--- a/jbsrc/lib/jb-util.c
++++ b/jbsrc/lib/jb-util.c
+@@ -477,7 +477,7 @@ jb_parse_uint32 (const char *str, int base, guint32 *value, GError **err)
+ 
+   if (v > G_MAXUINT32)
+     {
+-      g_set_error(err, 0, 0, "number out of range");
++      g_set_error(err, jb_error_quark(), 0, "number out of range");
+       return FALSE;
+     }
+ 
+@@ -497,13 +497,13 @@ jb_parse_uint64 (const char *str, int base, guint64 *value, GError **err)
+ 
+   if (*end != '\0')
+     {
+-      g_set_error(err, 0, 0, "invalid number");
++      g_set_error(err, jb_error_quark(), 0, "invalid number");
+       return FALSE;
+     }
+ 
+   if (v == G_MAXUINT64 && errno == ERANGE)
+     {
+-      g_set_error(err, 0, 0, "number out of range");
++      g_set_error(err, jb_error_quark(), 0, "number out of range");
+       return FALSE;
+     }
+ 
+@@ -672,7 +672,7 @@ jb_fchown_by_name (int fd,
+       info = getpwnam(owner);
+       if (info == NULL)
+ 	{
+-	  g_set_error(err, 0, 0, "unknown user \"%s\"", owner);
++	  g_set_error(err, jb_error_quark(), 0, "unknown user \"%s\"", owner);
+ 	  return FALSE;
+ 	}
+ 
+@@ -686,7 +686,7 @@ jb_fchown_by_name (int fd,
+       info = getgrnam(group);
+       if (group == NULL)
+ 	{
+-	  g_set_error(err, 0, 0, "unknown group \"%s\"", group);
++	  g_set_error(err, jb_error_quark(), 0, "unknown group \"%s\"", group);
+ 	  return FALSE;
+ 	}
+ 
+@@ -695,7 +695,7 @@ jb_fchown_by_name (int fd,
+ 
+   if (fchown(fd, uid, gid) < 0)
+     {
+-      g_set_error(err, 0, 0, "%s", g_strerror(errno));
++      g_set_error(err, jb_error_quark(), 0, "%s", g_strerror(errno));
+       return FALSE;
+     }
+ 
+@@ -1078,3 +1078,9 @@ jb_string_list_join (GSList *list, const char *separator)
+ 
+   return g_string_free(result, FALSE);
+ }
++
++GQuark
++jb_error_quark (void)
++{
++  return g_quark_from_static_string ("jb-error-quark");
++}
+diff --git a/jbsrc/lib/jb-util.h b/jbsrc/lib/jb-util.h
+index 2e31755..e6f795d 100644
+--- a/jbsrc/lib/jb-util.h
++++ b/jbsrc/lib/jb-util.h
+@@ -28,6 +28,7 @@
+ 
+ #define JB_MODE_FORMAT	"0%03o"
+ 
++
+ void jb_set_log_file (const char *filename);
+ void jb_log (const char *format, ...) G_GNUC_PRINTF(1, 2);
+ 
+@@ -126,4 +127,6 @@ gboolean jb_is_uptodate_list_list (GSList *dst_list, GSList *src_list);
+ 
+ char *jb_string_list_join (GSList *list, const char *separator);
+ 
++GQuark jb_error_quark(void);
++
+ #endif /* _JB_UTIL_H */
+diff --git a/jbsrc/lib/jb-variable.c b/jbsrc/lib/jb-variable.c
+index 0ffe624..531afad 100644
+--- a/jbsrc/lib/jb-variable.c
++++ b/jbsrc/lib/jb-variable.c
+@@ -77,7 +77,7 @@ bool_from_string (const char *str, GValue *value, GError **err)
+     g_value_set_boolean(value, FALSE);
+   else
+     {
+-      g_set_error(err, 0, 0, "\"yes\" or \"no\" expected");
++      g_set_error(err, jb_error_quark(), 0, "\"yes\" or \"no\" expected");
+       return FALSE;
+     }
+ 
+@@ -121,7 +121,7 @@ mode_from_string (const char *str, GValue *value, GError **err)
+ 
+   if ((mode & ~07777) != 0)
+     {
+-      g_set_error(err, 0, 0, "mode out of range");
++      g_set_error(err, jb_error_quark(), 0, "mode out of range");
+       return FALSE;
+     }
+ 
+diff --git a/src/lm-icmp.c b/src/lm-icmp.c
+index 13d5f78..1f7a94a 100644
+--- a/src/lm-icmp.c
++++ b/src/lm-icmp.c
+@@ -194,13 +194,13 @@ lm_icmp_send_echo_request (const LMSocket *sock,
+ 	goto again;
+       else
+ 	{
+-	  g_set_error(err, 0, 0, "%s", g_strerror(errno));
++	  g_set_error(err, jb_error_quark(), 0, "%s", g_strerror(errno));
+ 	  return FALSE;
+ 	}
+     }
+   else if (sent_len != packet_len)
+     {
+-      g_set_error(err, 0, 0, _("could not send whole packet"));
++      g_set_error(err, jb_error_quark(), 0, _("could not send whole packet"));
+       return FALSE;
+     }
+ 
