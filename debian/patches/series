@@ -4,5 +4,5 @@
 0004-Do-not-call-g_type_init-is-deprecated.patch
 0005-Set-gnu_printf-format-for-print_warning_or_error.patch
 0006-Explicitly-link-against-gmodule-2.0.patch
-0007-Avoid-warning-from-g_set_error-by-passing-in-a-domai.patch
-0008-Try-without-lbsd-compat.patch
+0007-Try-without-lbsd-compat.patch
+0008-Avoid-warning-from-g_set_error-by-passing-in-a-domai.patch

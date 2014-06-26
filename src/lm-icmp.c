@@ -194,13 +194,13 @@ lm_icmp_send_echo_request (const LMSocket *sock,
 	goto again;
       else
 	{
-	  g_set_error(err, jb_error_quark(), 0, "%s", g_strerror(errno));
+	  g_set_error(err, g_quark_from_static_string("jb-error-quark"), 0, "%s", g_strerror(errno));
 	  return FALSE;
 	}
     }
   else if (sent_len != packet_len)
     {
-      g_set_error(err, jb_error_quark(), 0, _("could not send whole packet"));
+      g_set_error(err, g_quark_from_static_string("jb-error-quark"), 0, _("could not send whole packet"));
       return FALSE;
     }
 

@@ -1,4 +1,4 @@
-From 47a09a7badae0f6e910a34ba41053fc0288c5193 Mon Sep 17 00:00:00 2001
+From 824183f08d7e0afa7dc05227ec67d57a0d9ac55b Mon Sep 17 00:00:00 2001
 From: Joachim Breitner <mail@joachim-breitner.de>
 Date: Thu, 26 Jun 2014 13:18:01 -0700
 Subject: Avoid warning from g_set_error by passing in a domain
@@ -196,7 +196,7 @@ index 0ffe624..531afad 100644
      }
  
 diff --git a/src/lm-icmp.c b/src/lm-icmp.c
-index 13d5f78..1f7a94a 100644
+index 13d5f78..e7335aa 100644
 --- a/src/lm-icmp.c
 +++ b/src/lm-icmp.c
 @@ -194,13 +194,13 @@ lm_icmp_send_echo_request (const LMSocket *sock,
@@ -204,14 +204,14 @@ index 13d5f78..1f7a94a 100644
        else
  	{
 -	  g_set_error(err, 0, 0, "%s", g_strerror(errno));
-+	  g_set_error(err, jb_error_quark(), 0, "%s", g_strerror(errno));
++	  g_set_error(err, g_quark_from_static_string("jb-error-quark"), 0, "%s", g_strerror(errno));
  	  return FALSE;
  	}
      }
    else if (sent_len != packet_len)
      {
 -      g_set_error(err, 0, 0, _("could not send whole packet"));
-+      g_set_error(err, jb_error_quark(), 0, _("could not send whole packet"));
++      g_set_error(err, g_quark_from_static_string("jb-error-quark"), 0, _("could not send whole packet"));
        return FALSE;
      }
  
